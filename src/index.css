@@ -1,0 +1,7 @@
+@import "react-datepicker/dist/react-datepicker.css";
+@import "tailwindcss";
+
+/* Optional global reset */
+body {
+  margin: 0;
+}
