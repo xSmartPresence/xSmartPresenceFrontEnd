@@ -7,6 +7,7 @@ import * as faceLandmarksDetection from "@tensorflow-models/face-landmarks-detec
 import { getEmployees, createEmployee, updateEmployee, deleteEmployee } from "../services/employees.service";
 import type { Employee } from "../types/employees.types";
 import { apiFetch } from "../api/apiClient";
+import { API_BASE } from "../config/api";
 
 // ── Types for dropdowns ───────────────────────────────────────────────────
 interface Department { id: number; name: string; }
@@ -267,7 +268,7 @@ apiFetch<any[]>("/shifts/")
     try {
       const token = localStorage.getItem("token");
       const response = await fetch(
-       `http://192.168.18.25:8000/api/v1/employees/${employeeId}/enroll`,
+       `${API_BASE}/employees/${employeeId}/enroll`,
         {
           method: "POST",
           headers: {
