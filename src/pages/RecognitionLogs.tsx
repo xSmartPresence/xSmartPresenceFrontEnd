@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Search, ChevronDown } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Search } from "lucide-react";
 
 interface Log {
   id: string;
@@ -11,11 +11,10 @@ interface Log {
   status: "Accepted" | "Rejected" | "Duplicate";
 }
 
-const RecognitionLogs = () => {
+  const RecognitionLogs = () => {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All Status");
-
-  // 🔹 Empty array — ready for backend API
+  const [statusOpen, setStatusOpen] = useState(false);
   const logs: Log[] = [];
 
   const filteredLogs = logs.filter((log) => {
@@ -25,6 +24,12 @@ const RecognitionLogs = () => {
 
     const matchesStatus =
       statusFilter === "All Status" || log.status === statusFilter;
+
+      useEffect(() => {
+        const close = () => setStatusOpen(false);
+        document.addEventListener("click", close);
+        return () => document.removeEventListener("click", close);
+      }, []);
 
     return matchesSearch && matchesStatus;
   });
@@ -62,23 +67,39 @@ const RecognitionLogs = () => {
         </div>
 
         {/* STATUS FILTER */}
-        <div className="relative w-full md:w-48">
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="w-full appearance-none border rounded-lg px-4 py-2 text-sm bg-white
-              focus:outline-none focus:ring-1 focus:ring-slate-900"
-          >
-            <option>All Status</option>
-            <option>Accepted</option>
-            <option>Rejected</option>
-            <option>Duplicate</option>
-          </select>
-          <ChevronDown
-            size={16}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
-          />
+       <div className="relative w-full md:w-48">
+  <button
+    type="button"
+    onClick={(e) => {
+      e.stopPropagation();
+      setStatusOpen(!statusOpen);
+    }}
+    className="w-full border rounded-lg px-4 py-2 bg-white text-sm flex items-center justify-between"
+  >
+    {statusFilter}
+    <span className="text-gray-400">▼</span>
+  </button>
+
+  {statusOpen && (
+    <div
+      className="absolute z-50 mt-1 w-full bg-white border rounded-lg shadow-lg"
+      onClick={(e) => e.stopPropagation()}
+    >
+      {["All Status", "Accepted", "Rejected", "Duplicate"].map((status) => (
+        <div
+          key={status}
+          onClick={() => {
+            setStatusFilter(status);
+            setStatusOpen(false);
+          }}
+          className="px-4 py-2 hover:bg-gray-100 cursor-pointer text-sm"
+        >
+          {status}
         </div>
+      ))}
+    </div>
+  )}
+</div>
 
       </div>
 
