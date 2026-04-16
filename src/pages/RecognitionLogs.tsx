@@ -54,15 +54,14 @@ interface Log {
         <div className="relative w-full md:w-80">
           <Search
             size={16}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+            className="absolute left-3 top-2.5 text-gray-400"
           />
           <input
             type="text"
             placeholder="Search by name or ID..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 border rounded-lg text-sm
-              focus:outline-none focus:ring-1 focus:ring-slate-900"
+            className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg bg-white text-sm"
           />
         </div>
 
@@ -74,7 +73,7 @@ interface Log {
       e.stopPropagation();
       setStatusOpen(!statusOpen);
     }}
-    className="w-full border rounded-lg px-4 py-2 bg-white text-sm flex items-center justify-between"
+    className="w-full border border-gray-300 rounded-lg px-4 py-2 bg-white text-sm flex items-center justify-between"
   >
     {statusFilter}
     <span className="text-gray-400">▼</span>

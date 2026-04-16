@@ -142,7 +142,7 @@ const Reports = () => {
 <div className="flex gap-2">
   <button
     onClick={handleExportCSV}
-    className="flex items-center gap-2 border px-4 py-2 rounded-lg text-sm hover:bg-gray-100 transition"
+   className="flex items-center gap-2 border border-gray-300 px-4 py-2 rounded-lg text-sm bg-white hover:bg-gray-100 transition"
   >
     <Download size={16} />
     Export CSV
@@ -189,7 +189,7 @@ const Reports = () => {
       e.stopPropagation();
       setDeptOpen(!deptOpen);
     }}
-    className="border rounded-lg px-4 py-2 bg-white text-sm flex items-center justify-between w-full sm:w-auto min-w-[180px]"
+    className="border border-gray-300 rounded-lg px-4 py-2 bg-white text-sm flex items-center justify-between w-full sm:w-auto min-w-[180px]"
   >
     {department || "All Departments"}
     <span className="text-gray-400 ml-2">▼</span>
@@ -232,7 +232,7 @@ const Reports = () => {
             customInput={
               <button
                 type="button"
-                className="flex items-center gap-2 border rounded-lg px-4 py-2 text-sm hover:bg-gray-100 transition"
+                className="flex items-center gap-2 border border-gray-300 rounded-lg px-4 py-2 text-sm bg-white hover:bg-gray-100 transition"
               >
                 <Calendar size={16} />
                 {format(selectedDate, "dd-MM-yyyy")}

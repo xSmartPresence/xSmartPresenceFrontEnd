@@ -365,7 +365,7 @@ const handleUpdateUser = async () => {
 
             <button
               onClick={() => setHolidayModal(true)}
-              className="flex items-center gap-2 border px-4 py-2 rounded-lg text-sm hover:bg-gray-50 transition"
+              className="flex items-center gap-2 border border-gray-300 px-4 py-2 rounded-lg text-sm bg-white hover:bg-gray-100 transition"
             >
               <Plus size={14} /> Add Holiday
             </button>
