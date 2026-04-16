@@ -18,7 +18,7 @@ function Attendance() {
 
   useEffect(() => {
   const close = () => setDeptOpen(false);
-  document.addEventListener("click", close);
+  document.addEventListener("mousedown", close);
   return () => document.removeEventListener("click", close);
 }, []);
 

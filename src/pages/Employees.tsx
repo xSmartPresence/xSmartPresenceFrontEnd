@@ -84,7 +84,7 @@ apiFetch<any[]>("/shifts/")
     setShiftOpen(false);
   };
 
-  document.addEventListener("click", close);
+  document.addEventListener("mousedown", close);
   return () => document.removeEventListener("click", close);
 }, []);
 

@@ -15,6 +15,13 @@ interface Log {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All Status");
   const [statusOpen, setStatusOpen] = useState(false);
+
+ useEffect(() => {
+  const close = () => setStatusOpen(false);
+  document.addEventListener("mousedown", close);
+  return () => document.removeEventListener("click", close);
+ }, []);
+
   const logs: Log[] = [];
 
   const filteredLogs = logs.filter((log) => {
@@ -25,11 +32,6 @@ interface Log {
     const matchesStatus =
       statusFilter === "All Status" || log.status === statusFilter;
 
-      useEffect(() => {
-        const close = () => setStatusOpen(false);
-        document.addEventListener("click", close);
-        return () => document.removeEventListener("click", close);
-      }, []);
 
     return matchesSearch && matchesStatus;
   });
