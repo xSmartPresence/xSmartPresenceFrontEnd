@@ -16,11 +16,15 @@ interface Log {
   const [statusFilter, setStatusFilter] = useState("All Status");
   const [statusOpen, setStatusOpen] = useState(false);
 
- useEffect(() => {
+  useEffect(() => {
   const close = () => setStatusOpen(false);
+
   document.addEventListener("click", close);
-  document.removeEventListener("click", close);
- }, []);
+
+  return () => {
+    document.removeEventListener("click", close);
+  };
+}, []);
 
   const logs: Log[] = [];
 
@@ -68,10 +72,7 @@ interface Log {
         </div>
 
         {/* STATUS FILTER */}
-      <div
-        className="relative w-full md:w-48"
-        onClick={(e) => e.stopPropagation()}
-       >
+      <div className="relative w-full md:w-48">
   <button
     type="button"
     onClick={(e) => {
