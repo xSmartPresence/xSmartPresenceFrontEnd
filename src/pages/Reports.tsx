@@ -21,7 +21,7 @@ const Reports = () => {
 
   useEffect(() => {
   const close = () => setDeptOpen(false);
-  document.addEventListener("mousedown", close);
+  document.addEventListener("click", close);
   return () => document.removeEventListener("click", close);
 }, []);
 

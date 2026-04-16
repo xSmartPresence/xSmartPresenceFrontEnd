@@ -72,7 +72,7 @@ const [savingHoliday, setSavingHoliday] = useState(false);
     setEditStatusOpen(false);
   };
 
-  document.addEventListener("mousedown", close);
+  document.addEventListener("click", close);
   return () => document.removeEventListener("click", close);
 }, []);
 

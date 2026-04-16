@@ -41,7 +41,7 @@ const Anomalies = () => {
   };
   
 
-  document.addEventListener("mousedown", close);
+  document.addEventListener("click", close);
   return () => document.removeEventListener("click", close);
 }, []);
   // ── Fetch anomalies on mount ──────────────────────────────────────────────

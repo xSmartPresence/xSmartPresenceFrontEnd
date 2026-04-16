@@ -18,8 +18,8 @@ interface Log {
 
  useEffect(() => {
   const close = () => setStatusOpen(false);
-  document.addEventListener("mousedown", close);
-  return () => document.removeEventListener("click", close);
+  document.addEventListener("click", close);
+  document.removeEventListener("click", close);
  }, []);
 
   const logs: Log[] = [];
