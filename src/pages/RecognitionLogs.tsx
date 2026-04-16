@@ -68,7 +68,10 @@ interface Log {
         </div>
 
         {/* STATUS FILTER */}
-       <div className="relative w-full md:w-48">
+      <div
+        className="relative w-full md:w-48"
+        onClick={(e) => e.stopPropagation()}
+       >
   <button
     type="button"
     onClick={(e) => {
@@ -84,7 +87,6 @@ interface Log {
   {statusOpen && (
     <div
       className="absolute z-50 mt-1 w-full bg-white border rounded-lg shadow-lg"
-      onClick={(e) => e.stopPropagation()}
     >
       {["All Status", "Accepted", "Rejected", "Duplicate"].map((status) => (
         <div
