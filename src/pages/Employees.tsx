@@ -423,13 +423,13 @@ throw new Error("Enrollment failed");
 
   {/* SEARCH */}
   <div className="order-2 sm:order-1 relative w-full sm:w-64">
-    <Search size={16} className="absolute left-3 top-3 text-gray-400" />
+    <Search size={16} className="absolute left-3 top-2.5 text-gray-400" />
     <input
       type="text"
       placeholder="Search Employee..."
       value={search}
       onChange={e => setSearch(e.target.value)}
-      className="w-full pl-9 pr-4 py-2 border rounded-lg"
+      className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg bg-white text-sm"
     />
   </div>
 
