@@ -138,16 +138,33 @@ interface Log {
                   <td className="px-4 py-3 whitespace-nowrap">{log.timestamp}</td>
                   <td className="px-4 py-3 whitespace-nowrap">{log.employeeId}</td>
                   <td className="px-4 py-3 whitespace-nowrap font-medium text-gray-900">
-                         {log.name}
+                        {log.name || "Unknown"}
                   </td>
-                  <td className="px-4 py-3 whitespace-nowrap">{log.camera}</td>
                   <td className="px-4 py-3 whitespace-nowrap">
-                    <div className="flex items-center gap-2">
+                    <span
+                      className={`px-3 py-1 rounded-full text-xs font-medium
+                        ${
+                          log.camera.toLowerCase().includes("entry")
+                            ? "bg-blue-100 text-blue-600"
+                            : "bg-sky-100 text-sky-600"
+                        }`}
+                    >
+                      {log.camera}
+                   </span>
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <div className="flex items-center gap-3">
                       <div className="w-24 bg-gray-200 rounded-full h-2">
                         <div
-                          className="bg-green-500 h-2 rounded-full"
-                          style={{ width: `${log.confidence}%` }}
-                        />
+                           className={`h-2 rounded-full ${
+                             log.confidence >= 80
+                             ? "bg-green-500"
+                             : log.confidence >= 60
+                             ? "bg-yellow-500"
+                             : "bg-red-500"
+                           }`}
+                           style={{ width: `${log.confidence}%` }}
+                         />
                       </div>
                       <span>{log.confidence}%</span>
                     </div>
@@ -163,7 +180,7 @@ interface Log {
                             : "bg-yellow-100 text-yellow-600"
                         }`}
                     >
-                      {log.status}
+                        {log.status}
                     </span>
                   </td>
                 </tr>
