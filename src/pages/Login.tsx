@@ -56,7 +56,8 @@ function Login() {
     }
 
     // Save real JWT token
-    localStorage.setItem("token", data.access_token);  
+    localStorage.setItem("token", data.access_token);
+    localStorage.setItem("role", data.role || "admin");  
 
     setError("");
     navigate("/dashboard");

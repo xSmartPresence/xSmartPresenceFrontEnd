@@ -16,26 +16,29 @@ import {
 const Layout = () => {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [role, setRole] = useState("");
   const navigate = useNavigate();
   const location = useLocation();
 
-  const sidebarItems = [
-    { name: "Dashboard", path: "/dashboard", icon: <Home size={18} /> },
-    { name: "Attendance", path: "/attendance", icon: <ClipboardCheck size={18} /> },
-    { name: "Employees", path: "/employees", icon: <UserCircle2 size={18} /> },
-    { name: "Shifts & Depts", path: "/shifts", icon: <Timer size={18} /> },
-    { name: "Reports", path: "/reports", icon: <BarChart3 size={18} /> },
-    { name: "Recognition Logs", path: "/logs", icon: <Fingerprint size={18} /> },
-    { name: "Anomalies", path: "/anomalies", icon: <ShieldAlert size={18} /> },
-    { name: "Settings", path: "/settings", icon: <Sliders size={18} /> },
-  ];
+   const sidebarItems = [
+  { name: "Dashboard",        path: "/dashboard", icon: <Home size={18} />,        roles: ["admin", "hr", "super_admin"] },
+  { name: "Attendance",       path: "/attendance", icon: <ClipboardCheck size={18} />, roles: ["admin", "hr", "super_admin"] },
+  { name: "Employees",        path: "/employees", icon: <UserCircle2 size={18} />,  roles: ["admin", "hr", "super_admin"] },
+  { name: "Shifts & Depts",   path: "/shifts",    icon: <Timer size={18} />,        roles: ["admin", "super_admin"] },
+  { name: "Reports",          path: "/reports",   icon: <BarChart3 size={18} />,    roles: ["admin", "hr", "super_admin"] },
+  { name: "Recognition Logs", path: "/logs",      icon: <Fingerprint size={18} />,  roles: ["admin", "super_admin"] },
+  { name: "Anomalies",        path: "/anomalies", icon: <ShieldAlert size={18} />,  roles: ["admin", "super_admin"] },
+  { name: "Settings",         path: "/settings",  icon: <Sliders size={18} />,      roles: ["super_admin"] },
+];
 
-  useEffect(() => {
+ useEffect(() => {
   const token = localStorage.getItem("token");
   if (!token) {
     navigate("/");
   }
-}, []);
+  const savedRole = localStorage.getItem("role") || "admin";
+  setRole(savedRole);
+ }, []);
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -79,7 +82,7 @@ const Layout = () => {
 
         {/* MENU */}
         <div className="flex-1 px-4 pt-4 space-y-1 overflow-y-auto">
-          {sidebarItems.map((item) => (
+          {sidebarItems.filter(item => item.roles.includes(role)).map((item) => (
             <div
               key={item.name}
               onClick={() => {
@@ -108,6 +111,7 @@ const Layout = () => {
                const confirm = window.confirm("Are you sure you want to logout?");
                if (confirm) {
                    localStorage.removeItem("token");
+                   localStorage.removeItem("role");  
                    navigate("/");
                }
            }}
