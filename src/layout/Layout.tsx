@@ -28,7 +28,7 @@ const Layout = () => {
   { name: "Reports",          path: "/reports",   icon: <BarChart3 size={18} />,    roles: ["admin", "hr", "super_admin"] },
   { name: "Recognition Logs", path: "/logs",      icon: <Fingerprint size={18} />,  roles: ["admin", "super_admin"] },
   { name: "Anomalies",        path: "/anomalies", icon: <ShieldAlert size={18} />,  roles: ["admin", "super_admin"] },
-  { name: "Settings",         path: "/settings",  icon: <Sliders size={18} />,      roles: ["super_admin"] },
+  { name: "Settings",         path: "/settings",  icon: <Sliders size={18} />,      roles: ["admin", "super_admin"] },
 ];
 
   useEffect(() => {
