@@ -11,9 +11,9 @@ function Login() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-  const token = localStorage.getItem("token");
-  if (token) navigate("/dashboard");
-}, []);
+     const token = localStorage.getItem("token");
+     if (token) navigate("/dashboard");
+  }, [navigate]);
 
   const handleLogin = async () => {
 
@@ -29,13 +29,15 @@ function Login() {
 
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
    setError("Please enter a valid email address");
+   setLoading(false);
    return;
   }
 
   if (password.length < 4) {
    setError("Password must be at least 4 characters");
+   setLoading(false);
    return;
-  }
+ }
 
    const response = await fetch(`${API_BASE}/auth/login`, {
   method: "POST",
@@ -70,8 +72,8 @@ function Login() {
   };
 
   return (
-   <div className="min-h-screen flex items-center justify-center bg-gray-100 px-6">
-      <div className="bg-white w-full max-w-md p-8 rounded-2xl shadow-md">
+   <div className="min-h-screen bg-gray-100 flex flex-col justify-center px-4 py-8">
+      <div className="bg-white w-full max-w-md mx-auto p-6 sm:p-8 rounded-2xl shadow-md">
 
         {/* ICON */}
         <div className="flex justify-center mb-5">
