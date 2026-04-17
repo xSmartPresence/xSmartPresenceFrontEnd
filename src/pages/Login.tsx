@@ -54,6 +54,7 @@ function Login() {
 
     if (!response.ok) {
       setError(data.message || "Login failed");
+      setLoading(false);
       return;
     }
 
@@ -72,8 +73,8 @@ function Login() {
   };
 
   return (
-   <div className="min-h-screen bg-gray-100 flex flex-col justify-center px-4 py-8">
-      <div className="bg-white w-full max-w-md mx-auto p-6 sm:p-8 rounded-2xl shadow-md">
+   <div className="min-h-[100dvh] bg-gray-100 flex items-center justify-center px-4">
+      <div className="bg-white w-full max-w-md mx-auto p-6 sm:p-8 my-6 rounded-2xl shadow-md">
 
         {/* ICON */}
         <div className="flex justify-center mb-5">
