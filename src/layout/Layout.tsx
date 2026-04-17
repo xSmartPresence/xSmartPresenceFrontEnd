@@ -31,14 +31,15 @@ const Layout = () => {
   { name: "Settings",         path: "/settings",  icon: <Sliders size={18} />,      roles: ["super_admin"] },
 ];
 
- useEffect(() => {
+  useEffect(() => {
   const token = localStorage.getItem("token");
   if (!token) {
     navigate("/");
   }
+
   const savedRole = localStorage.getItem("role") || "admin";
   setRole(savedRole);
- }, []);
+}, [navigate]);
 
   return (
     <div className="flex h-screen overflow-hidden">
