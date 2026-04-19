@@ -38,7 +38,7 @@ const Layout = () => {
   }
 
   const savedRole = localStorage.getItem("role") || "admin";
-  setRole(savedRole);
+  setRole(savedRole.toLowerCase().replace(/ /g, "_"));
 }, [navigate]);
 
   return (
