@@ -30,7 +30,7 @@ import { useEffect, useState, useRef } from "react";
 import { getDashboardData } from "../services/dashboard.service";
 import type { DashboardData } from "../types/dashboard.types";
 
-const WS_URL = "wss://smart-presence-backend.onrender.com/ws/dashboard";
+const WS_URL = import.meta.env.VITE_WS_URL;
 
 function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
@@ -57,7 +57,6 @@ function Dashboard() {
     setMounted(true);
     getDashboardData()
       .then((res) => {
-        console.log("Dashboard API:", res);
         setData(res);
         setLoading(false);
       })
@@ -77,7 +76,6 @@ function Dashboard() {
 
         ws.onopen = () => {
           setWsConnected(true);
-          console.log("WebSocket connected");
           if (reconnectRef.current) clearTimeout(reconnectRef.current);
         };
 
@@ -102,7 +100,6 @@ function Dashboard() {
 
         ws.onclose = () => {
           setWsConnected(false);
-          console.log("WebSocket disconnected — reconnecting in 5s...");
           reconnectRef.current = setTimeout(connect, 5000);
         };
       } catch (e) {

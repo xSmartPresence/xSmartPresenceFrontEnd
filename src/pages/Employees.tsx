@@ -62,7 +62,7 @@ const Employees = () => {
   useEffect(() => {
     getEmployees()
       .then(data => Array.isArray(data) ? setEmployees(data) : setEmployees([]))
-      .catch(err => console.error("Failed to load employees:", err))
+      .catch(() => {})
       .finally(() => setLoadingEmployees(false));
 
   apiFetch<any[]>("/departments/")
@@ -230,7 +230,6 @@ apiFetch<any[]>("/shifts/")
 
     // ✅ Add flow — just store photos, enroll after Save
     if (!editingEmployee) {
-      console.log("Photos stored:", capturedImages.length); // 👈
         alert("✅ 5 photos captured! Click Save to create employee and register face.");
         setOpenCamera(false);
         setOpenModal(true);
@@ -289,7 +288,6 @@ throw new Error("Enrollment failed");
 
   // ── CRUD ──────────────────────────────────────────────────────────────────
   const handleSave = async () => {
-    console.log("Photos on save:", capturedImages.length);
 
    if (!formData.code.trim()) {
     alert("Employee code is required");
@@ -333,7 +331,7 @@ throw new Error("Enrollment failed");
         full_name:     formData.name,
         department_id: formData.department_id,  
         shift_id:      formData.shift_id,       
-        is_active:     true,
+        is_active: editingEmployee ? editingEmployee.active : true,
       };
 
      if (editingEmployee) {
