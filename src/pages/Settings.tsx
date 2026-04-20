@@ -455,8 +455,8 @@ const handleUpdateUser = async () => {
 
       {/* HOLIDAY MODAL */}
       {holidayModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-start justify-center z-50 px-4 pt-10 overflow-y-auto">
-          <div className="bg-white w-full max-w-md rounded-xl shadow-xl p-6 relative my-6">
+        <div className="fixed inset-0 bg-black/40 flex items-center sm:items-start justify-center z-[9999] px-4 pt-6 sm:pt-10 overflow-y-auto">
+          <div className="bg-white w-full max-w-md rounded-xl shadow-xl p-6 relative my-6 max-h-[90vh] overflow-y-auto">
             <button onClick={() => setHolidayModal(false)} className="absolute right-4 top-4 text-gray-500">
               <X size={20} />
             </button>
@@ -468,13 +468,14 @@ const handleUpdateUser = async () => {
                 onChange={e => setHolidayForm({ ...holidayForm, name: e.target.value })}
                 className="w-full border rounded-lg px-3 py-2 text-sm"
               />
-             <input
-                type="date"
-                value={holidayForm.holiday_date}
-                onChange={e => setHolidayForm({ ...holidayForm, holiday_date: e.target.value })}
-                min={new Date().toISOString().split("T")[0]}
-                className="w-full border rounded-lg px-3 py-2 text-sm"
-              />
+            <input
+              type="date"
+              value={holidayForm.holiday_date}
+              onChange={e => setHolidayForm({ ...holidayForm, holiday_date: e.target.value })}
+              min={new Date().toISOString().split("T")[0]}
+              className="w-full border rounded-lg px-3 py-2 text-sm appearance-none"
+              style={{ position: "relative", zIndex: 1 }}
+            />
                <div className="relative">
   <button
     type="button"
