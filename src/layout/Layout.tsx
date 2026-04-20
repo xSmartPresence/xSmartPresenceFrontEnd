@@ -47,7 +47,7 @@ const Layout = () => {
       {/* MOBILE OVERLAY */}
       {mobileOpen && (
         <div
-          className="fixed inset-0 bg-black/40 z-40 lg:hidden"
+          className="fixed inset-0 bg-black/40 z-40 xl:hidden"
           onClick={() => setMobileOpen(false)}
         />
       )}
@@ -58,8 +58,8 @@ const Layout = () => {
           fixed top-0 left-0 h-screen bg-slate-900 text-white
           flex flex-col transition-all duration-300 z-50
           ${mobileOpen ? "translate-x-0" : "-translate-x-full"}
-          lg:translate-x-0
-          ${collapsed ? "lg:w-[70px]" : "lg:w-[230px]"}
+          xl:translate-x-0
+          ${collapsed ? "xl:w-[70px]" : "xl:w-[230px]"}
           w-[230px]
        `}
       >
@@ -131,14 +131,14 @@ const Layout = () => {
         flex-1 bg-gray-100 p-4 lg:p-6 transition-all duration-300
         h-screen overflow-y-auto
         ml-0
-        ${collapsed ? "lg:ml-[70px]" : "lg:ml-[230px]"}
+        ${collapsed ? "xl:ml-[70px]" : "xl:ml-[230px]"}
       `}
       >
         <Menu
           size={22}
           className="cursor-pointer mb-4"
         onClick={() => {
-          if (window.innerWidth < 1024) {
+          if (window.innerWidth < 1280) {
             setMobileOpen(!mobileOpen);
           } else {
             setCollapsed(!collapsed);
