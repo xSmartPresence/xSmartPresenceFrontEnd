@@ -52,6 +52,8 @@ function Login() {
 
     const data = await response.json();
 
+   console.log("Backend response:", data); 
+
     if (!response.ok) {
       setError(data.message || "Login failed");
       setLoading(false);
