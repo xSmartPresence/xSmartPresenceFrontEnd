@@ -455,8 +455,8 @@ const handleUpdateUser = async () => {
 
       {/* HOLIDAY MODAL */}
       {holidayModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
-          <div className="bg-white w-full max-w-md rounded-xl shadow-xl p-6 relative">
+        <div className="fixed inset-0 bg-black/40 flex items-start justify-center z-50 px-4 pt-10 overflow-y-auto">
+          <div className="bg-white w-full max-w-md rounded-xl shadow-xl p-6 relative my-6">
             <button onClick={() => setHolidayModal(false)} className="absolute right-4 top-4 text-gray-500">
               <X size={20} />
             </button>
@@ -471,8 +471,8 @@ const handleUpdateUser = async () => {
               <input
                 type="date"
                 value={holidayForm.holiday_date}
-                 onChange={e => setHolidayForm({ ...holidayForm, holiday_date: e.target.value })}
-                className="w-full border rounded-lg px-3 py-2 text-sm"
+                onChange={e => setHolidayForm({ ...holidayForm, holiday_date: e.target.value })}
+                className="w-full border rounded-lg px-3 py-2 text-sm appearance-none"
               />
                <div className="relative">
   <button
