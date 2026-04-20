@@ -468,13 +468,15 @@ const handleUpdateUser = async () => {
                 onChange={e => setHolidayForm({ ...holidayForm, name: e.target.value })}
                 className="w-full border rounded-lg px-3 py-2 text-sm"
               />
+             <label className="text-sm font-medium text-gray-600 mb-1 block">
+                Holiday Date
+             </label> 
             <input
               type="date"
               value={holidayForm.holiday_date}
               onChange={e => setHolidayForm({ ...holidayForm, holiday_date: e.target.value })}
               min={new Date().toISOString().split("T")[0]}
-              className="w-full border rounded-lg px-3 py-2 text-sm appearance-none"
-              style={{ position: "relative", zIndex: 1 }}
+              className="w-full border rounded-lg px-3 py-2 text-sm text-gray-700"
             />
                <div className="relative">
   <button
