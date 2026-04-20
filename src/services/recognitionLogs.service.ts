@@ -1,5 +1,5 @@
 import { apiFetch } from "../api/apiClient";
-import type { RecognitionLog } from "../types/recognitionLlogs.types";
+import type { RecognitionLog } from "../types/recognitionLogs.types";
 
 export const getRecognitionLogs = async (): Promise<RecognitionLog[]> => {
   try {

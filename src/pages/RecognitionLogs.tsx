@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Search } from "lucide-react";
 import { getRecognitionLogs } from "../services/recognitionLogs.service";
-import type { RecognitionLog } from "../types/recognitionLlogs.types";
+import type { RecognitionLog } from "../types/recognitionLogs.types";
 
 const RecognitionLogs = () => {
   const [search, setSearch] = useState("");
