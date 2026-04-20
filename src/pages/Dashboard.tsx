@@ -131,7 +131,7 @@ function Dashboard() {
       <p className="text-gray-500 text-sm mb-6">Real-time attendance overview</p>
 
       {/* SUMMARY CARDS */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-4 mb-8">
         <Card title="Total Employees" value={summary.total} color="#6366f1" icon={<Users size={16} />} />
         <Card title="Present Today" value={presentToday} color="#22c55e" icon={<UserCheck size={16} />} />
         <Card title="Absent" value={absentToday} color="#ef4444" icon={<UserX size={16} />} />
@@ -142,7 +142,7 @@ function Dashboard() {
       </div>
 
       {/* TREND + HEALTH */}
-     <div className="grid grid-cols-1 md:grid-cols-12 gap-4 mb-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 mb-6">
 
         {/* LINE CHART */}
         <Box className="lg:col-span-8">
@@ -199,7 +199,7 @@ function Dashboard() {
       </div>
 
       {/* PIE + BAR */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
 
         {/* PIE — ✅ no padding on wrapper, chart controls its own space */}
         <div className="bg-white rounded-xl shadow-sm w-full lg:col-span-6 px-4 pt-4 pb-2">
