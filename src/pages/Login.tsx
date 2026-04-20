@@ -52,7 +52,6 @@ function Login() {
 
     const data = await response.json();
 
-   console.log("Backend response:", data); 
 
     if (!response.ok) {
       setError(data.message || "Login failed");
@@ -61,8 +60,8 @@ function Login() {
     }
 
     // Save real JWT token
-    localStorage.setItem("token", data.access_token);
-    localStorage.setItem("role", data.role || "admin");  
+    localStorage.setItem("token", data.token || data.access_token);
+    localStorage.setItem("role", data.role || "admin"); 
 
     setError("");
     navigate("/dashboard");
