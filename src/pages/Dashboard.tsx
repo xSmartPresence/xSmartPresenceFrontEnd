@@ -22,11 +22,15 @@ import {
   Clock,
   Radio,
   Timer,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { getDashboardData } from "../services/dashboard.service";
 import type { DashboardData } from "../types/dashboard.types";
+
+const WS_URL = "wss://smart-presence-backend.onrender.com/ws/dashboard";
 
 function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
@@ -34,7 +38,12 @@ function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [isMobile, setIsMobile] = useState(false);
+  const [wsConnected, setWsConnected] = useState(false);
+  const [liveSummary, setLiveSummary] = useState<any>(null);
+  const wsRef = useRef<WebSocket | null>(null);
+  const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // ── Resize listener ───────────────────────────────────────────────────────
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 640);
     check();
@@ -42,6 +51,7 @@ function Dashboard() {
     return () => window.removeEventListener("resize", check);
   }, []);
 
+  // ── Initial API fetch ─────────────────────────────────────────────────────
   useEffect(() => {
     setMounted(true);
     getDashboardData()
@@ -57,21 +67,77 @@ function Dashboard() {
       });
   }, []);
 
+  // ── WebSocket connection ──────────────────────────────────────────────────
+  useEffect(() => {
+    const connect = () => {
+      try {
+        const ws = new WebSocket(WS_URL);
+        wsRef.current = ws;
+
+        ws.onopen = () => {
+          setWsConnected(true);
+          console.log("WebSocket connected");
+          if (reconnectRef.current) clearTimeout(reconnectRef.current);
+        };
+
+        ws.onmessage = (event) => {
+          try {
+            const msg = JSON.parse(event.data);
+            setLiveSummary({
+              total:     msg.total      ?? msg.total_employees  ?? 0,
+              present:   msg.present    ?? msg.present_today    ?? 0,
+              absent:    msg.absent     ?? msg.absent_today     ?? 0,
+              late:      msg.late       ?? msg.late_arrivals    ?? 0,
+              earlyExit: msg.earlyExit  ?? msg.early_exits      ?? 0,
+              overtime:  msg.overtime   ?? msg.overtime_count   ?? 0,
+              occupancy: msg.occupancy  ?? msg.office_occupancy ?? 0,
+            });
+          } catch (e) {
+            console.error("WS parse error:", e);
+          }
+        };
+
+        ws.onerror = () => setWsConnected(false);
+
+        ws.onclose = () => {
+          setWsConnected(false);
+          console.log("WebSocket disconnected — reconnecting in 5s...");
+          reconnectRef.current = setTimeout(connect, 5000);
+        };
+      } catch (e) {
+        console.error("WebSocket init error:", e);
+        reconnectRef.current = setTimeout(connect, 5000);
+      }
+    };
+
+    connect();
+
+    return () => {
+      if (reconnectRef.current) clearTimeout(reconnectRef.current);
+      wsRef.current?.close();
+    };
+  }, []);
+
+  // ── Loading / Error states ────────────────────────────────────────────────
   if (loading) return <div className="text-gray-500">Loading dashboard...</div>;
+
   if (error) return (
-  <div className="flex flex-col items-center justify-center py-20 gap-4">
-    <p className="text-red-500">{error}</p>
-    <button
-      onClick={() => window.location.reload()}
-      className="px-4 py-2 bg-[#0B1E3F] text-white text-sm rounded-lg hover:opacity-90"
-    >
-      Retry
-    </button>
-  </div>
+    <div className="flex flex-col items-center justify-center py-20 gap-4">
+      <p className="text-red-500">{error}</p>
+      <button
+        onClick={() => window.location.reload()}
+        className="px-4 py-2 bg-[#0B1E3F] text-white text-sm rounded-lg hover:opacity-90"
+      >
+        Retry
+      </button>
+    </div>
   );
+
   if (!data) return null;
 
-  const { summary, attendanceData, deptData, systemHealth } = data;
+  // ── Use live WebSocket data if available, else fall back to API data ──────
+  const { attendanceData, deptData, systemHealth } = data;
+  const summary = liveSummary ?? data.summary;
 
   const fullWeek = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -80,8 +146,8 @@ function Dashboard() {
     return found || { day, present: 0, absent: 0 };
   });
 
- const allValues = filledData.flatMap(d => [d.present ?? 0, d.absent ?? 0]);
- const maxValue = allValues.length > 0 ? Math.max(...allValues) : 0;
+  const allValues = filledData.flatMap(d => [d.present ?? 0, d.absent ?? 0]);
+  const maxValue = allValues.length > 0 ? Math.max(...allValues) : 0;
 
   let yAxisGap = 10;
   if (maxValue <= 10) yAxisGap = 2;
@@ -107,45 +173,53 @@ function Dashboard() {
 
   const today = new Date().toLocaleString("en-US", { weekday: "short" });
   const todayData = filledData.find(d => d.day === today) || { present: 0, absent: 0 };
-  const presentToday = todayData.present;
-  const absentToday = todayData.absent;
+  const presentToday = liveSummary?.present ?? todayData.present;
+  const absentToday  = liveSummary?.absent  ?? todayData.absent;
 
   const COLORS = ["#1bb451", "#b01212", "#f59e0b"];
 
   const fixedPieData = [
     { name: "Present", value: presentToday },
-    { name: "Absent", value: absentToday },
-    { name: "Late", value: summary.late },
+    { name: "Absent",  value: absentToday  },
+    { name: "Late",    value: summary.late  },
   ].filter(item => item.value > 0);
 
-  // ✅ Responsive chart dimensions
   const pieInnerRadius = isMobile ? 40 : 55;
   const pieOuterRadius = isMobile ? 65 : 80;
-  const pieHeight = isMobile ? 200 : 260;
-  const barHeight = isMobile ? 200 : 260;
-  const barSize = isMobile ? 14 : 30;
+  const pieHeight      = isMobile ? 200 : 260;
+  const barHeight      = isMobile ? 200 : 260;
+  const barSize        = isMobile ? 14  : 30;
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-gray-800">Dashboard</h1>
+      {/* HEADER */}
+      <div className="flex items-center justify-between mb-1">
+        <h1 className="text-2xl font-bold text-gray-800">Dashboard</h1>
+        <div className={`flex items-center gap-1.5 text-xs px-3 py-1 rounded-full ${
+          wsConnected ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
+        }`}>
+          {wsConnected ? <Wifi size={12} /> : <WifiOff size={12} />}
+          {wsConnected ? "Live" : "Static"}
+        </div>
+      </div>
       <p className="text-gray-500 text-sm mb-6">Real-time attendance overview</p>
 
       {/* SUMMARY CARDS */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-4 mb-8">
-        <Card title="Total Employees" value={summary.total} color="#6366f1" icon={<Users size={16} />} />
-        <Card title="Present Today" value={presentToday} color="#22c55e" icon={<UserCheck size={16} />} />
-        <Card title="Absent" value={absentToday} color="#ef4444" icon={<UserX size={16} />} />
-        <Card title="Late Arrivals" value={summary.late} color="#f59e0b" icon={<Clock size={16} />} />
-        <Card title="Early Exit" value={summary.earlyExit} color="#0ea5e9" icon={<Clock size={16} />} />
-        <Card title="Overtime" value={summary.overtime} color="#8b5cf6" icon={<Timer size={16} />} />
-        <Card title="Office Occupancy" value={summary.occupancy} color="#14b8a6" icon={<Users size={16} />} />
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-7 gap-3 mb-8">
+        <Card title="Total Employees"  value={summary.total}     color="#6366f1" icon={<Users size={16} />}     live={wsConnected} />
+        <Card title="Present Today"    value={presentToday}      color="#22c55e" icon={<UserCheck size={16} />} live={wsConnected} />
+        <Card title="Absent"           value={absentToday}       color="#ef4444" icon={<UserX size={16} />}     live={wsConnected} />
+        <Card title="Late Arrivals"    value={summary.late}      color="#f59e0b" icon={<Clock size={16} />}     live={wsConnected} />
+        <Card title="Early Exit"       value={summary.earlyExit} color="#0ea5e9" icon={<Clock size={16} />}     live={wsConnected} />
+        <Card title="Overtime"         value={summary.overtime}  color="#8b5cf6" icon={<Timer size={16} />}     live={wsConnected} />
+        <Card title="Office Occupancy" value={summary.occupancy} color="#14b8a6" icon={<Users size={16} />}     live={wsConnected} />
       </div>
 
       {/* TREND + HEALTH */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-4 mb-6">
 
         {/* LINE CHART */}
-        <Box className="lg:col-span-8">
+        <Box className="md:col-span-8">
           <h3 className="text-sm font-semibold mb-3">Attendance Trend (Weekly)</h3>
           {mounted && (
             <ResponsiveContainer width="100%" height={240}>
@@ -167,11 +241,13 @@ function Dashboard() {
                   allowDecimals={false}
                 />
                 <Tooltip />
-                <Line type="monotone" dataKey="present" stroke="#22c55e" strokeWidth={2.5}
+                <Line
+                  type="monotone" dataKey="present" stroke="#22c55e" strokeWidth={2.5}
                   dot={{ r: 4, fill: "#fff", stroke: "#22c55e", strokeWidth: 2 }}
                   activeDot={{ r: 6, fill: "#fff", stroke: "#22c55e", strokeWidth: 2 }}
                 />
-                <Line type="monotone" dataKey="absent" stroke="#ef4444" strokeWidth={2.5}
+                <Line
+                  type="monotone" dataKey="absent" stroke="#ef4444" strokeWidth={2.5}
                   dot={{ r: 4, fill: "#fff", stroke: "#ef4444", strokeWidth: 2 }}
                   activeDot={{ r: 6, fill: "#fff", stroke: "#ef4444", strokeWidth: 2 }}
                 />
@@ -181,28 +257,47 @@ function Dashboard() {
         </Box>
 
         {/* SYSTEM HEALTH */}
-        <Box className="lg:col-span-4">
+        <Box className="md:col-span-4">
           <h3 className="text-sm font-semibold mb-3">System Health</h3>
-          <HealthRow icon={<Radio size={18} />} label="Entry Camera" status={systemHealth.entryCamera}
-            color={systemHealth.entryCamera === "Online" ? "#22c55e" : "#ef4444"} />
-          <HealthRow icon={<Radio size={18} />} label="Exit Camera" status={systemHealth.exitCamera}
-            color={systemHealth.exitCamera === "Online" ? "#22c55e" : "#ef4444"} />
-          <HealthRow icon={<Radio size={18} />} label="AI Recognition" status={systemHealth.aiRecognition}
-            color={systemHealth.aiRecognition === "Active" ? "#3b82f6" : "#64748b"} />
-          <HealthRow icon={<Radio size={18} />} label="Last Sync" status={systemHealth.lastSync}
-            color="#64748b" noBorder />
+          <HealthRow
+            icon={<Radio size={18} />} label="Entry Camera"
+            status={systemHealth.entryCamera}
+            color={systemHealth.entryCamera === "Online" ? "#22c55e" : "#ef4444"}
+          />
+          <HealthRow
+            icon={<Radio size={18} />} label="Exit Camera"
+            status={systemHealth.exitCamera}
+            color={systemHealth.exitCamera === "Online" ? "#22c55e" : "#ef4444"}
+          />
+          <HealthRow
+            icon={<Radio size={18} />} label="AI Recognition"
+            status={systemHealth.aiRecognition}
+            color={systemHealth.aiRecognition === "Active" ? "#3b82f6" : "#64748b"}
+          />
+          <HealthRow
+            icon={<Radio size={18} />} label="Last Sync"
+            status={systemHealth.lastSync}
+            color="#64748b" noBorder
+          />
           <div className="mt-4 bg-gray-100 rounded-xl px-4 py-3 flex items-center gap-3 text-sm text-gray-700">
-            <BadgeCheck size={20} className="text-green-500" />
-            <span>All systems operational</span>
+            <BadgeCheck size={20} className={
+              systemHealth.entryCamera === "Online" && systemHealth.exitCamera === "Online"
+                ? "text-green-500" : "text-red-500"
+            } />
+            <span>
+              {systemHealth.entryCamera === "Online" && systemHealth.exitCamera === "Online"
+                ? "All systems operational"
+                : "Some systems need attention"}
+            </span>
           </div>
         </Box>
       </div>
 
       {/* PIE + BAR */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
 
-        {/* PIE — ✅ no padding on wrapper, chart controls its own space */}
-        <div className="bg-white rounded-xl shadow-sm w-full lg:col-span-6 px-4 pt-4 pb-2">
+        {/* PIE */}
+        <div className="bg-white rounded-xl shadow-sm w-full md:col-span-6 px-4 pt-4 pb-2">
           <h3 className="text-sm font-semibold mb-1">Today's Distribution</h3>
           {mounted && (
             <ResponsiveContainer width="100%" height={pieHeight}>
@@ -226,10 +321,13 @@ function Dashboard() {
               </PieChart>
             </ResponsiveContainer>
           )}
+          {fixedPieData.length === 0 && (
+            <p className="text-center text-xs text-gray-400 mt-2 pb-4">No data for today</p>
+          )}
         </div>
 
-        {/* BAR — ✅ no padding on wrapper, chart controls its own space */}
-        <div className="bg-white rounded-xl shadow-sm w-full lg:col-span-6 px-4 pt-4 pb-2">
+        {/* BAR */}
+        <div className="bg-white rounded-xl shadow-sm w-full md:col-span-6 px-4 pt-4 pb-2">
           <h3 className="text-sm font-semibold mb-1">Department-wise Attendance</h3>
           {mounted && (
             <ResponsiveContainer width="100%" height={barHeight}>
@@ -258,7 +356,7 @@ function Dashboard() {
                 <Tooltip />
                 <Legend height={36} />
                 <Bar dataKey="present" fill="#1e3a8a" barSize={barSize} radius={[6, 6, 0, 0]} />
-                <Bar dataKey="absent" fill="#ef4444" barSize={barSize} radius={[6, 6, 0, 0]} />
+                <Bar dataKey="absent"  fill="#ef4444" barSize={barSize} radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           )}
@@ -271,14 +369,15 @@ function Dashboard() {
 
 /* COMPONENTS */
 
-function Card({ title, value, color, icon }: any) {
+function Card({ title, value, color, icon, live }: any) {
   return (
-    <div className="bg-white p-4 rounded-xl shadow-sm">
+    <div className={`bg-white p-4 rounded-xl shadow-sm transition-all ${live ? "ring-1 ring-green-200" : ""}`}>
       <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
         <span style={{ color }}>{icon}</span>
         <p className="truncate">{title}</p>
       </div>
       <h2 className="text-xl md:text-2xl font-bold mt-2 text-black">{value}</h2>
+      {live && <div className="w-1.5 h-1.5 rounded-full bg-green-400 mt-1 animate-pulse" />}
     </div>
   );
 }
