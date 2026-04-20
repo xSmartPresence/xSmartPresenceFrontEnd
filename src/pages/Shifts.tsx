@@ -87,8 +87,17 @@ const Shifts = () => {
         alert("End time is required");
         return;
       }
-      if (shiftForm.start_time >= shiftForm.end_time) {
-        alert("End time must be after start time");
+      const start = new Date(`1970-01-01T${shiftForm.start_time}`);
+      let end = new Date(`1970-01-01T${shiftForm.end_time}`);
+
+      // 👉 Handle overnight shift (cross midnight)
+      if (end <= start) {
+        end.setDate(end.getDate() + 1);
+      }
+ 
+      // ❗ Prevent same time
+      if (start.getTime() === end.getTime()) {
+        alert("Start and end time cannot be same");
         return;
       }
       if (shiftForm.grace_minutes < 0) {
