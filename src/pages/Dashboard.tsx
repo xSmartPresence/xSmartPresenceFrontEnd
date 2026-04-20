@@ -40,6 +40,7 @@ function Dashboard() {
   const [isMobile, setIsMobile] = useState(false);
   const [wsConnected, setWsConnected] = useState(false);
   const [liveSummary, setLiveSummary] = useState<any>(null);
+
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -67,7 +68,7 @@ function Dashboard() {
       });
   }, []);
 
-  // ── WebSocket connection ──────────────────────────────────────────────────
+  // ── WebSocket connection with auto-reconnect ──────────────────────────────
   useEffect(() => {
     const connect = () => {
       try {
@@ -202,24 +203,32 @@ function Dashboard() {
           {wsConnected ? "Live" : "Static"}
         </div>
       </div>
-      <p className="text-gray-500 text-sm mb-6">Real-time attendance overview</p>
+      <p className="text-gray-500 text-sm mb-2">Real-time attendance overview</p>
+
+      {/* LIVE INDICATOR */}
+      {liveSummary && (
+        <div className="flex items-center gap-2 mb-4">
+          <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+          <span className="text-xs text-green-600 font-medium">Live — updates every 10 seconds</span>
+        </div>
+      )}
 
       {/* SUMMARY CARDS */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-7 gap-3 mb-8">
-        <Card title="Total Employees"  value={summary.total}     color="#6366f1" icon={<Users size={16} />}     live={wsConnected} />
-        <Card title="Present Today"    value={presentToday}      color="#22c55e" icon={<UserCheck size={16} />} live={wsConnected} />
-        <Card title="Absent"           value={absentToday}       color="#ef4444" icon={<UserX size={16} />}     live={wsConnected} />
-        <Card title="Late Arrivals"    value={summary.late}      color="#f59e0b" icon={<Clock size={16} />}     live={wsConnected} />
-        <Card title="Early Exit"       value={summary.earlyExit} color="#0ea5e9" icon={<Clock size={16} />}     live={wsConnected} />
-        <Card title="Overtime"         value={summary.overtime}  color="#8b5cf6" icon={<Timer size={16} />}     live={wsConnected} />
-        <Card title="Office Occupancy" value={summary.occupancy} color="#14b8a6" icon={<Users size={16} />}     live={wsConnected} />
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-4 mb-8">
+        <Card title="Total Employees" value={liveSummary?.total ?? summary.total} color="#6366f1" icon={<Users size={16} />} live={!!liveSummary} />
+        <Card title="Present Today" value={liveSummary?.present ?? presentToday} color="#22c55e" icon={<UserCheck size={16} />} live={!!liveSummary} />
+        <Card title="Absent" value={liveSummary?.absent ?? absentToday} color="#ef4444" icon={<UserX size={16} />} live={!!liveSummary} />
+        <Card title="Late Arrivals" value={liveSummary?.late ?? summary.late} color="#f59e0b" icon={<Clock size={16} />} live={!!liveSummary} />
+        <Card title="Early Exit" value={liveSummary?.earlyExit ?? summary.earlyExit} color="#0ea5e9" icon={<Clock size={16} />} live={!!liveSummary} />
+        <Card title="Overtime" value={liveSummary?.overtime ?? summary.overtime} color="#8b5cf6" icon={<Timer size={16} />} live={!!liveSummary} />
+        <Card title="Office Occupancy" value={liveSummary?.occupancy ?? summary.occupancy} color="#14b8a6" icon={<Users size={16} />} live={!!liveSummary} />
       </div>
 
       {/* TREND + HEALTH */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-4 mb-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 mb-6">
 
         {/* LINE CHART */}
-        <Box className="md:col-span-8">
+        <Box className="lg:col-span-8">
           <h3 className="text-sm font-semibold mb-3">Attendance Trend (Weekly)</h3>
           {mounted && (
             <ResponsiveContainer width="100%" height={240}>
@@ -241,13 +250,11 @@ function Dashboard() {
                   allowDecimals={false}
                 />
                 <Tooltip />
-                <Line
-                  type="monotone" dataKey="present" stroke="#22c55e" strokeWidth={2.5}
+                <Line type="monotone" dataKey="present" stroke="#22c55e" strokeWidth={2.5}
                   dot={{ r: 4, fill: "#fff", stroke: "#22c55e", strokeWidth: 2 }}
                   activeDot={{ r: 6, fill: "#fff", stroke: "#22c55e", strokeWidth: 2 }}
                 />
-                <Line
-                  type="monotone" dataKey="absent" stroke="#ef4444" strokeWidth={2.5}
+                <Line type="monotone" dataKey="absent" stroke="#ef4444" strokeWidth={2.5}
                   dot={{ r: 4, fill: "#fff", stroke: "#ef4444", strokeWidth: 2 }}
                   activeDot={{ r: 6, fill: "#fff", stroke: "#ef4444", strokeWidth: 2 }}
                 />
@@ -257,28 +264,20 @@ function Dashboard() {
         </Box>
 
         {/* SYSTEM HEALTH */}
-        <Box className="md:col-span-4">
+        <Box className="lg:col-span-4">
           <h3 className="text-sm font-semibold mb-3">System Health</h3>
-          <HealthRow
-            icon={<Radio size={18} />} label="Entry Camera"
+          <HealthRow icon={<Radio size={18} />} label="Entry Camera"
             status={systemHealth.entryCamera}
-            color={systemHealth.entryCamera === "Online" ? "#22c55e" : "#ef4444"}
-          />
-          <HealthRow
-            icon={<Radio size={18} />} label="Exit Camera"
+            color={systemHealth.entryCamera === "Online" ? "#22c55e" : "#ef4444"} />
+          <HealthRow icon={<Radio size={18} />} label="Exit Camera"
             status={systemHealth.exitCamera}
-            color={systemHealth.exitCamera === "Online" ? "#22c55e" : "#ef4444"}
-          />
-          <HealthRow
-            icon={<Radio size={18} />} label="AI Recognition"
+            color={systemHealth.exitCamera === "Online" ? "#22c55e" : "#ef4444"} />
+          <HealthRow icon={<Radio size={18} />} label="AI Recognition"
             status={systemHealth.aiRecognition}
-            color={systemHealth.aiRecognition === "Active" ? "#3b82f6" : "#64748b"}
-          />
-          <HealthRow
-            icon={<Radio size={18} />} label="Last Sync"
+            color={systemHealth.aiRecognition === "Active" ? "#3b82f6" : "#64748b"} />
+          <HealthRow icon={<Radio size={18} />} label="Last Sync"
             status={systemHealth.lastSync}
-            color="#64748b" noBorder
-          />
+            color="#64748b" noBorder />
           <div className="mt-4 bg-gray-100 rounded-xl px-4 py-3 flex items-center gap-3 text-sm text-gray-700">
             <BadgeCheck size={20} className={
               systemHealth.entryCamera === "Online" && systemHealth.exitCamera === "Online"
@@ -294,10 +293,10 @@ function Dashboard() {
       </div>
 
       {/* PIE + BAR */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
 
         {/* PIE */}
-        <div className="bg-white rounded-xl shadow-sm w-full md:col-span-6 px-4 pt-4 pb-2">
+        <div className="bg-white rounded-xl shadow-sm w-full lg:col-span-6 px-4 pt-4 pb-2">
           <h3 className="text-sm font-semibold mb-1">Today's Distribution</h3>
           {mounted && (
             <ResponsiveContainer width="100%" height={pieHeight}>
@@ -327,7 +326,7 @@ function Dashboard() {
         </div>
 
         {/* BAR */}
-        <div className="bg-white rounded-xl shadow-sm w-full md:col-span-6 px-4 pt-4 pb-2">
+        <div className="bg-white rounded-xl shadow-sm w-full lg:col-span-6 px-4 pt-4 pb-2">
           <h3 className="text-sm font-semibold mb-1">Department-wise Attendance</h3>
           {mounted && (
             <ResponsiveContainer width="100%" height={barHeight}>
