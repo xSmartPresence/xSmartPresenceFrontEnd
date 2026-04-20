@@ -47,7 +47,7 @@ const Layout = () => {
       {/* MOBILE OVERLAY */}
       {mobileOpen && (
         <div
-          className="fixed inset-0 bg-black/40 z-40 md:hidden"
+          className="fixed inset-0 bg-black/40 z-40 lg:hidden"
           onClick={() => setMobileOpen(false)}
         />
       )}
@@ -58,10 +58,10 @@ const Layout = () => {
           fixed top-0 left-0 h-screen bg-slate-900 text-white
           flex flex-col transition-all duration-300 z-50
           ${mobileOpen ? "translate-x-0" : "-translate-x-full"}
-          md:translate-x-0
-          ${collapsed ? "md:w-[70px]" : "md:w-[260px]"}
-           w-[260px]
-        `}
+          lg:translate-x-0
+          ${collapsed ? "lg:w-[70px]" : "lg:w-[230px]"}
+          w-[230px]
+       `}
       >
         {/* HEADER */}
     <div className="flex items-center gap-3 px-4 py-6 border-b border-white/20">
@@ -127,23 +127,23 @@ const Layout = () => {
 
       {/* MAIN CONTENT */}
       <div
-        className={`
-          flex-1 bg-gray-100 p-6 transition-all duration-300
-          h-screen overflow-y-auto
-          ml-0
-          ${collapsed ? "md:ml-[70px]" : "md:ml-[260px]"}
-        `}
+       className={`
+        flex-1 bg-gray-100 p-4 lg:p-6 transition-all duration-300
+        h-screen overflow-y-auto
+        ml-0
+        ${collapsed ? "lg:ml-[70px]" : "lg:ml-[230px]"}
+      `}
       >
         <Menu
           size={22}
           className="cursor-pointer mb-4"
-          onClick={() => {
-            if (window.innerWidth < 768) {
-              setMobileOpen(!mobileOpen);
-            } else {
-              setCollapsed(!collapsed);
-            }
-          }}
+        onClick={() => {
+          if (window.innerWidth < 1024) {
+            setMobileOpen(!mobileOpen);
+          } else {
+            setCollapsed(!collapsed);
+          }
+        }}
         />
 
         <Outlet />
