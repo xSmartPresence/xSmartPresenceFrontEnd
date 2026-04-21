@@ -40,20 +40,11 @@ export const getAttendance = async (
     department: item.department,
     date: item.punch_in || params.date,
     shift: "General",
-    in: item.punch_in
-      ? new Date(item.punch_in).toLocaleTimeString("en-US", {
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: true,
-        })
-      : "-",
-    out: item.punch_out
-      ? new Date(item.punch_out).toLocaleTimeString("en-US", {
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: true,
-        })
-      : "-",
+    // M4 fix: store raw ISO strings — never format here.
+    // Formatting happens in the display layer (Attendance.tsx) and is
+    // never parsed back, so locale differences can't corrupt calculations.
+    in: item.punch_in ?? "-",
+    out: item.punch_out ?? "-",
     hours: "-",
     status: item.status,
     anomaly: "",

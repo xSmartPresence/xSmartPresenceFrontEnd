@@ -38,3 +38,18 @@ export const deleteEmployee = async (code: string): Promise<void> => {
     method: "DELETE",
   });
 };
+
+// FIX H4: Previously this was a raw fetch() call inside Employees.tsx that
+// manually read the token from localStorage and had no 401/error handling.
+// Moving it here through apiFetch means:
+//   • Expired tokens are caught and redirect to login, exactly like every
+//     other API call in the app.
+//   • The Authorization header is assembled in one place (apiClient.ts).
+//   • If the endpoint path ever changes it's updated alongside the other
+//     employee endpoints, not buried inside a component.
+export const enrollEmployee = async (employeeCode: string, photos: string[]): Promise<void> => {
+  await apiFetch<unknown>(`/employees/${employeeCode}/enroll`, {
+    method: "POST",
+    body: JSON.stringify({ photos }),
+  });
+};

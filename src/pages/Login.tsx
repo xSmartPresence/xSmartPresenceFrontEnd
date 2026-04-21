@@ -54,7 +54,7 @@ function Login() {
 
 
     if (!response.ok) {
-      setError(data.message || "Login failed");
+      setError(data.detail || data.message || "Login failed");
       setLoading(false);
       return;
     }

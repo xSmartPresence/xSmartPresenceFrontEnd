@@ -6,14 +6,18 @@ export async function apiFetch<T>(
 ): Promise<T> {
   const token = localStorage.getItem("token");
 
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000);
+
   const res = await fetch(`${API_BASE}${endpoint}`, {
+    signal: controller.signal,
     ...options,
     headers: {
       "Content-Type": "application/json",
       ...(token && { Authorization: `Bearer ${token}` }),
       ...(options.headers || {}),
     },
-  });
+  }).finally(() => clearTimeout(timeout));
 
   if (res.status === 401) {
     localStorage.removeItem("token");

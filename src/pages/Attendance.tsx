@@ -7,6 +7,28 @@ import type { AttendanceRecord } from "../types/attendance.types";
 import "react-datepicker/dist/react-datepicker.css";
 import AttendanceCalendar from "../components/AttendanceCalendar";
 
+// M4 fix: format an ISO timestamp for display only — never parsed back.
+// Falls back to "-" for any invalid / missing value.
+const formatTimeDisplay = (iso: string): string => {
+  if (!iso || iso === "-") return "-";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "-";
+  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: true });
+};
+
+// M4 fix: calculate hours directly from ISO strings using Date arithmetic.
+// No string-splitting, no locale assumptions — just millisecond subtraction.
+const calculateHours = (inISO: string, outISO: string): string => {
+  if (!inISO || !outISO || inISO === "-" || outISO === "-") return "-";
+  const inMs = new Date(inISO).getTime();
+  const outMs = new Date(outISO).getTime();
+  if (isNaN(inMs) || isNaN(outMs) || outMs <= inMs) return "-";
+  const diffMins = Math.round((outMs - inMs) / 60_000);
+  const h = Math.floor(diffMins / 60);
+  const m = diffMins % 60;
+  return m === 0 ? `${h}h` : `${h}h ${m}m`;
+};
+
 function Attendance() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
@@ -85,7 +107,11 @@ function Attendance() {
     const rows = records.map((r) =>
       [
         r.code, r.name, r.department, r.date, r.shift,
-        r.in, r.out, calculateHours(r.in, r.out), r.status, r.anomaly || "-",
+        // M4: format for CSV export the same way the table displays it
+        formatTimeDisplay(r.in),
+        formatTimeDisplay(r.out),
+        calculateHours(r.in, r.out),
+        r.status, r.anomaly || "-",
       ].map(sanitizeCSV)
     );
     const csvContent = [headers, ...rows].map((row) => row.join(",")).join("\n");
@@ -96,24 +122,6 @@ function Attendance() {
     a.download = `attendance-${format(selectedDate, "yyyy-MM-dd")}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-  };
-
-  const calculateHours = (inTime: string, outTime: string): string => {
-    if (!inTime || !outTime || inTime === "-" || outTime === "-") return "-";
-    const parseTime = (t: string) => {
-      const [time, modifier] = t.split(" ");
-      let [hours, minutes] = time.split(":").map(Number);
-      if (modifier === "PM" && hours !== 12) hours += 12;
-      if (modifier === "AM" && hours === 12) hours = 0;
-      return hours * 60 + minutes;
-    };
-    const inMinutes = parseTime(inTime);
-    const outMinutes = parseTime(outTime);
-    if (outMinutes <= inMinutes) return "-";
-    const diff = outMinutes - inMinutes;
-    const h = Math.floor(diff / 60);
-    const m = diff % 60;
-    return m === 0 ? `${h}h` : `${h}h ${m}m`;
   };
 
   return (
@@ -256,8 +264,9 @@ function Attendance() {
                         {r.date ? (() => { try { return format(new Date(r.date), "dd-MM-yyyy"); } catch { return "-"; } })() : "-"}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">{r.shift}</td>
-                      <td className="px-4 py-3 whitespace-nowrap">{r.in}</td>
-                      <td className="px-4 py-3 whitespace-nowrap">{r.out}</td>
+                      {/* M4: format ISO timestamps for display only — never parsed back */}
+                      <td className="px-4 py-3 whitespace-nowrap">{formatTimeDisplay(r.in)}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">{formatTimeDisplay(r.out)}</td>
                       <td className="px-4 py-3 whitespace-nowrap">{calculateHours(r.in, r.out)}</td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         <span className={getStatusBadge(r.status)}>{r.status}</span>

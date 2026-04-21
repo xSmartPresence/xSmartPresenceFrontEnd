@@ -30,7 +30,8 @@ import { useEffect, useState, useRef } from "react";
 import { getDashboardData } from "../services/dashboard.service";
 import type { DashboardData } from "../types/dashboard.types";
 
-const WS_URL = import.meta.env.VITE_WS_URL;
+const WS_URL = import.meta.env.VITE_WS_URL as string;
+if (!WS_URL) throw new Error("VITE_WS_URL is not set in .env");
 
 function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
@@ -71,7 +72,8 @@ function Dashboard() {
   useEffect(() => {
     const connect = () => {
       try {
-        const ws = new WebSocket(WS_URL);
+        const token = localStorage.getItem("token");
+        const ws = new WebSocket(`${WS_URL}?token=${token}`);
         wsRef.current = ws;
 
         ws.onopen = () => {
@@ -131,7 +133,7 @@ function Dashboard() {
     </div>
   );
 
-  if (!data) return null;
+  if (!data) return <div className="text-gray-400 text-sm p-4">Initialising...</div>;
 
   // ── Use live WebSocket data if available, else fall back to API data ──────
   const { attendanceData, deptData, systemHealth } = data;
@@ -365,7 +367,15 @@ function Dashboard() {
 
 /* COMPONENTS */
 
-function Card({ title, value, color, icon, live }: any) {
+interface CardProps {
+  title: string;
+  value: number | string;
+  color: string;
+  icon: React.ReactNode;
+  live: boolean;
+}
+
+function Card({ title, value, color, icon, live }: CardProps) {
   return (
     <div className={`bg-white p-4 rounded-xl shadow-sm transition-all ${live ? "ring-1 ring-green-200" : ""}`}>
       <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
@@ -378,7 +388,15 @@ function Card({ title, value, color, icon, live }: any) {
   );
 }
 
-function HealthRow({ icon, label, status, color, noBorder }: any) {
+interface HealthRowProps {
+  icon: React.ReactNode;
+  label: string;
+  status: string;
+  color: string;
+  noBorder?: boolean;
+}
+
+function HealthRow({ icon, label, status, color, noBorder }: HealthRowProps) {
   return (
     <div className={`flex justify-between items-center py-3 ${noBorder ? "" : "border-b border-gray-200"}`}>
       <div className="flex items-center gap-3 text-sm">

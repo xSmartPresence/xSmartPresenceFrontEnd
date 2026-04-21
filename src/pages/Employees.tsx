@@ -4,10 +4,9 @@ import {
 import { useState, useRef, useEffect } from "react";
 import * as tf from "@tensorflow/tfjs";
 import * as faceLandmarksDetection from "@tensorflow-models/face-landmarks-detection";
-import { getEmployees, createEmployee, updateEmployee, deleteEmployee } from "../services/employees.service";
+import { getEmployees, createEmployee, updateEmployee, deleteEmployee, enrollEmployee } from "../services/employees.service";
 import type { Employee } from "../types/employees.types";
 import { apiFetch } from "../api/apiClient";
-import { API_BASE } from "../config/api";
 
 // ── Types for dropdowns ───────────────────────────────────────────────────
 interface Department { id: number; name: string; }
@@ -19,7 +18,7 @@ const Employees = () => {
   const [search, setSearch]                   = useState("");
   const [employees, setEmployees]             = useState<Employee[]>([]);
   const [loadingEmployees, setLoadingEmployees] = useState(true);
-  
+
   // ── Dropdown data ─────────────────────────────────────────────────────────
   const [departments, setDepartments] = useState<Department[]>([]);
   const [shifts, setShifts]           = useState<Shift[]>([]);
@@ -32,6 +31,11 @@ const Employees = () => {
   const canvasRef   = useRef<HTMLCanvasElement>(null);
   const detectorRef = useRef<faceLandmarksDetection.FaceLandmarksDetector | null>(null);
   const rafRef      = useRef<number>(0);
+
+  // FIX C8: Capture editingEmployee into a ref when camera opens so the
+  // enrollment effect always reads the employee that was active at capture
+  // time — never a stale value from a later state update.
+  const enrollingEmployeeRef = useRef<Employee | null>(null);
 
   const [modelReady,   setModelReady]   = useState(false);
   const [faceDetected, setFaceDetected] = useState(false);
@@ -54,10 +58,11 @@ const Employees = () => {
   const [formData, setFormData] = useState({
     code: "", name: "", department_id: 0, shift_id: 0, faceRegistered: false,
   });
-  
-  const [deptOpen, setDeptOpen] = useState(false);
+
+  const [deptOpen,  setDeptOpen]  = useState(false);
   const [shiftOpen, setShiftOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [saving,    setSaving]    = useState(false);
+
   // ── Fetch employees, departments, shifts on mount ────────────────────────
   useEffect(() => {
     getEmployees()
@@ -65,28 +70,24 @@ const Employees = () => {
       .catch(() => {})
       .finally(() => setLoadingEmployees(false));
 
-  apiFetch<any[]>("/departments/")
-  .then(data => {
-    setDepartments(Array.isArray(data) ? data.map(d => ({ id: d.id, name: d.name ?? d.department_name })) : [])
-  })
-  .catch(err => console.error("Departments error:", err));
+    apiFetch<any[]>("/departments/")
+      .then(data => {
+        setDepartments(Array.isArray(data) ? data.map(d => ({ id: d.id, name: d.name ?? d.department_name })) : []);
+      })
+      .catch(err => console.error("Departments error:", err));
 
-apiFetch<any[]>("/shifts/")
-  .then(data => {
-    setShifts(Array.isArray(data) ? data.map(s => ({ id: s.id, name: s.shift_name ?? s.name })) : [])
-  })
-  .catch(err => console.error("Shifts error:", err));
+    apiFetch<any[]>("/shifts/")
+      .then(data => {
+        setShifts(Array.isArray(data) ? data.map(s => ({ id: s.id, name: s.shift_name ?? s.name })) : []);
+      })
+      .catch(err => console.error("Shifts error:", err));
   }, []);
 
   useEffect(() => {
-  const close = () => {
-    setDeptOpen(false);
-    setShiftOpen(false);
-  };
-
-  document.addEventListener("click", close);
-  return () => document.removeEventListener("click", close);
-}, []);
+    const close = () => { setDeptOpen(false); setShiftOpen(false); };
+    document.addEventListener("click", close);
+    return () => document.removeEventListener("click", close);
+  }, []);
 
   // ── Helpers ───────────────────────────────────────────────────────────────
   const getInitials = (name: string) => {
@@ -113,6 +114,7 @@ apiFetch<any[]>("/shifts/")
     cancelAnimationFrame(rafRef.current);
     if (videoRef.current?.srcObject) {
       (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
+      videoRef.current.srcObject = null;
     }
   };
 
@@ -133,17 +135,37 @@ apiFetch<any[]>("/shifts/")
   }, []);
 
   // ── Start webcam ─────────────────────────────────────────────────────────
+  // FIX H5: Use a `cancelled` flag to guard against the stream arriving after
+  // the effect has already cleaned up (component unmounted or openCamera went
+  // false while getUserMedia was still in flight). Without this, the .then()
+  // callback assigns a live stream to a detached videoRef that will never be
+  // stopped, leaking the camera indefinitely.
   useEffect(() => {
     if (!openCamera) return;
-     navigator.mediaDevices.getUserMedia({ video: true })
+
+    let cancelled = false;
+
+    navigator.mediaDevices.getUserMedia({ video: true })
       .then(stream => {
-      if (videoRef.current) videoRef.current.srcObject = stream;
-     })
-     .catch(() => {
-       alert("Camera access denied. Please allow camera permission and try again.");
-       setOpenCamera(false);
-    });
-    return () => stopCamera();
+        if (cancelled) {
+          // Effect already cleaned up — stop the stream immediately so the
+          // browser camera indicator turns off.
+          stream.getTracks().forEach(t => t.stop());
+          return;
+        }
+        if (videoRef.current) videoRef.current.srcObject = stream;
+      })
+      .catch(() => {
+        if (!cancelled) {
+          alert("Camera access denied. Please allow camera permission and try again.");
+          setOpenCamera(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+      stopCamera();
+    };
   }, [openCamera]);
 
   // ── Detection loop ────────────────────────────────────────────────────────
@@ -224,169 +246,151 @@ apiFetch<any[]>("/shifts/")
   };
 
   // ── Enroll after 5 captures ──────────────────────────────────────────────
+  // FIX C8: Read from enrollingEmployeeRef (set when camera opens) instead of
+  // the editingEmployee state variable. State reads inside effects are captured
+  // at effect-creation time and can be stale if the user navigated to a
+  // different employee while the camera was still open. The ref is always
+  // current because it is written synchronously before the camera is shown.
   useEffect(() => {
-  const processEnrollment = async () => {
-    if (capturedImages.length !== 5) return;
+    const processEnrollment = async () => {
+      if (capturedImages.length !== 5) return;
 
-    // ✅ Add flow — just store photos, enroll after Save
-    if (!editingEmployee) {
+      const employeeAtCaptureTime = enrollingEmployeeRef.current;
+
+      // Add flow — no employee yet, just store photos and return to modal
+      if (!employeeAtCaptureTime) {
         alert("✅ 5 photos captured! Click Save to create employee and register face.");
         setOpenCamera(false);
         setOpenModal(true);
         return;
-    }
+      }
 
-    // ✅ Edit flow — employee exists, enroll immediately
-    const result = await enrollEmployee(editingEmployee.code, capturedImages);
+      // Edit flow — employee already exists, enroll immediately
+      try {
+        await enrollEmployee(employeeAtCaptureTime.code, capturedImages);
+        setEmployees(prev =>
+          prev.map(emp =>
+            emp.id === employeeAtCaptureTime.id ? { ...emp, faceRegistered: true } : emp
+          )
+        );
+        alert("✅ Face registered successfully!");
+        setOpenCamera(false);
+        setCapturedImages([]);
+      } catch (error: any) {
+        const msg: string = error.message ?? "";
+        if (msg.toLowerCase().includes("expected 5 photos"))
+          alert("⚠️ Photo count error: " + msg);
+        else if (msg.toLowerCase().includes("no face detected"))
+          alert("😶 No face detected. Please retake — ensure your face is clearly visible.");
+        else if (msg.toLowerCase().includes("multiple faces"))
+          alert("👥 Multiple faces detected. Please ensure only one person is in frame.");
+        else
+          alert("Enrollment failed: " + msg);
+        setCapturedImages([]);
+      }
+    };
 
-    if (!result.success) {
-      const msg = result.message || "";
-      if (msg.toLowerCase().includes("expected 5 photos"))
-        alert("⚠️ Photo count error: " + msg);
-      else if (msg.toLowerCase().includes("no face detected"))
-        alert("😶 No face detected. Please retake — ensure your face is clearly visible.");
-      else if (msg.toLowerCase().includes("multiple faces"))
-        alert("👥 Multiple faces detected. Please ensure only one person is in frame.");
-      else
-        alert("Enrollment failed: " + msg);
-      setCapturedImages([]);
-      return;
-    }
-
-    setEmployees(prev =>
-      prev.map(emp => emp.id === editingEmployee.id ? { ...emp, faceRegistered: true } : emp)
-    );
-    alert("✅ Face registered successfully!");
-    setOpenCamera(false);
-    setCapturedImages([]);
-  };
-  processEnrollment();
-}, [capturedImages]);
-
-  const enrollEmployee = async (employeeId: string, photos: string[]) => {
-    try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(
-       `${API_BASE}/employees/${employeeId}/enroll`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ photos }),
-        }
-      );
-      const data = await response.json();
-if (data.message === "Face registered" || data.status === "success") return { success: true };
-if (data.message === "Face registered") return { success: true };
-throw new Error("Enrollment failed");
-    } catch (error: any) {
-      return { success: false, message: error.message };
-    }
-  };
+    processEnrollment();
+  }, [capturedImages]);
 
   // ── CRUD ──────────────────────────────────────────────────────────────────
   const handleSave = async () => {
+    if (!formData.code.trim()) {
+      alert("Employee code is required");
+      return;
+    }
+    if (!/^[A-Za-z0-9]+$/.test(formData.code.trim())) {
+      alert("Employee code can only contain letters and numbers");
+      return;
+    }
+    if (!formData.name.trim()) {
+      alert("Employee name is required");
+      return;
+    }
+    if (formData.name.trim().length < 3) {
+      alert("Employee name must be at least 3 characters");
+      return;
+    }
+    if (!formData.department_id) {
+      alert("Please select a department");
+      return;
+    }
+    if (!formData.shift_id) {
+      alert("Please select a shift");
+      return;
+    }
 
-   if (!formData.code.trim()) {
-    alert("Employee code is required");
-    return;
-  }
+    const confirmed = window.confirm(
+      editingEmployee
+        ? `Are you sure you want to update ${formData.name}?`
+        : `Are you sure you want to add ${formData.name}?`
+    );
+    if (!confirmed) return;
 
-  if (!/^[A-Za-z0-9]+$/.test(formData.code.trim())) {
-   alert("Employee code can only contain letters and numbers");
-   return;
-  }
-
-  if (!formData.name.trim()) {
-    alert("Employee name is required");
-    return;
-  }
-
- if (formData.name.trim().length < 3) {
-  alert("Employee name must be at least 3 characters");
-  return;
- }
-
-  if (!formData.department_id) {
-    alert("Please select a department");
-    return;
-  }
-  if (!formData.shift_id) {
-    alert("Please select a shift");
-    return;
-  }  
-
-  const confirmed = window.confirm(
-    editingEmployee
-      ? `Are you sure you want to update ${formData.name}?`
-      : `Are you sure you want to add ${formData.name}?`
-  );
-  if (!confirmed) return;
-  setSaving(true);
-  try {
+    setSaving(true);
+    try {
       const payload: any = {
         employee_id:   formData.code,
         full_name:     formData.name,
-        department_id: formData.department_id,  
-        shift_id:      formData.shift_id,       
+        department_id: formData.department_id,
+        shift_id:      formData.shift_id,
         is_active: editingEmployee ? editingEmployee.active : true,
       };
 
-     if (editingEmployee) {
-  await updateEmployee(editingEmployee.code, payload);
-  const fresh = await getEmployees();
-  setEmployees(Array.isArray(fresh) ? fresh : []);
-} else {
-  try {
-    await createEmployee(payload);
-    if (capturedImages.length === 5) {
-      const result = await enrollEmployee(formData.code, capturedImages);
-      if (result.success) {
-        alert("✅ Face registered successfully!");
+      if (editingEmployee) {
+        await updateEmployee(editingEmployee.code, payload);
+        const fresh = await getEmployees();
+        setEmployees(Array.isArray(fresh) ? fresh : []);
       } else {
-        alert("Employee created but face enrollment failed: " + result.message);
+        try {
+          await createEmployee(payload);
+          if (capturedImages.length === 5) {
+            // FIX H4: enrollEmployee now goes through apiFetch (see
+            // employees.service.ts) so 401 responses are handled centrally,
+            // just like every other API call in this app.
+            try {
+              await enrollEmployee(formData.code, capturedImages);
+              alert("✅ Face registered successfully!");
+            } catch (enrollError: any) {
+              alert("Employee created but face enrollment failed: " + enrollError.message);
+            }
+          }
+          const fresh = await getEmployees();
+          setEmployees(Array.isArray(fresh) ? fresh : []);
+          setCapturedImages([]);
+        } catch (err: any) {
+          if (err.message.includes("400") || err.message.includes("409")) {
+            alert(`⚠️ Employee with code "${formData.code}" already exists. Please use a different code.`);
+          } else {
+            alert("Failed to create employee: " + err.message);
+          }
+          return;
+        }
       }
-    }
-    const fresh = await getEmployees();
-    setEmployees(Array.isArray(fresh) ? fresh : []);
-    setCapturedImages([]);
-  } catch (err: any) {
-    if (err.message.includes("400") || err.message.includes("409")) {
-      alert(`⚠️ Employee with code "${formData.code}" already exists. Please use a different code.`);
-    } else {
-      alert("Failed to create employee: " + err.message);
-    }
-    return;
-  }
-}
 
       setOpenModal(false);
       setEditingEmployee(null);
       setFormData({ code: "", name: "", department_id: 0, shift_id: 0, faceRegistered: false });
-
-   
-  } catch (err: any) {
-    alert("Failed to save employee: " + err.message);
-  } finally {
-    setSaving(false);  
-  }
-};
+    } catch (err: any) {
+      alert("Failed to save employee: " + err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const handleDelete = async (code: string) => {
-  const confirmed = window.confirm(
-    `Are you sure you want to delete employee ${code}? This action cannot be undone.`
-  );
-  if (!confirmed) return;
+    const confirmed = window.confirm(
+      `Are you sure you want to delete employee ${code}? This action cannot be undone.`
+    );
+    if (!confirmed) return;
 
-  try {
-    await deleteEmployee(code);
-    setEmployees(prev => prev.filter(emp => emp.code !== code));
-  } catch (err: any) {
-    alert("Failed to delete employee: " + err.message);
-  }
-};
+    try {
+      await deleteEmployee(code);
+      setEmployees(prev => prev.filter(emp => emp.code !== code));
+    } catch (err: any) {
+      alert("Failed to delete employee: " + err.message);
+    }
+  };
 
   const filteredEmployees = employees.filter(
     emp =>
@@ -395,15 +399,9 @@ throw new Error("Enrollment failed");
   );
 
   const resetForm = () => {
-  setFormData({
-    code: "",
-    name: "",
-    department_id: 0,
-    shift_id: 0,
-    faceRegistered: false,
-  });
-  setEditingEmployee(null);
-};
+    setFormData({ code: "", name: "", department_id: 0, shift_id: 0, faceRegistered: false });
+    setEditingEmployee(null);
+  };
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -418,100 +416,96 @@ throw new Error("Enrollment failed");
       </div>
 
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+        {/* SEARCH */}
+        <div className="order-2 sm:order-1 relative w-full sm:w-64">
+          <Search size={16} className="absolute left-3 top-2.5 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search Employee..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg bg-white text-sm"
+          />
+        </div>
 
-  {/* SEARCH */}
-  <div className="order-2 sm:order-1 relative w-full sm:w-64">
-    <Search size={16} className="absolute left-3 top-2.5 text-gray-400" />
-    <input
-      type="text"
-      placeholder="Search Employee..."
-      value={search}
-      onChange={e => setSearch(e.target.value)}
-      className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg bg-white text-sm"
-    />
-  </div>
-
-  {/* ADD BUTTON */}
-  <button
-    onClick={() => { setEditingEmployee(null); setOpenModal(true); }}
-   className="order-1 sm:order-2 w-full sm:w-auto flex items-center justify-center gap-2 bg-[#0B1E3F] text-white px-4 py-2 text-sm rounded-lg hover:opacity-90 transition"
-  >
-    <Plus size={16} /> Add Employee
-  </button>
-
-</div>
+        {/* ADD BUTTON */}
+        <button
+          onClick={() => { setEditingEmployee(null); setOpenModal(true); }}
+          className="order-1 sm:order-2 w-full sm:w-auto flex items-center justify-center gap-2 bg-[#0B1E3F] text-white px-4 py-2 text-sm rounded-lg hover:opacity-90 transition"
+        >
+          <Plus size={16} /> Add Employee
+        </button>
+      </div>
 
       {/* GRID */}
       {loadingEmployees ? (
         <p className="text-gray-400 text-sm">Loading employees...</p>
       ) : (
-       <>
-        {filteredEmployees.length === 0 ? (
-           <div className="col-span-3 text-center py-10 text-gray-400">
+        <>
+          {filteredEmployees.length === 0 ? (
+            <div className="col-span-3 text-center py-10 text-gray-400">
               {search ? "No employees match your search" : "No employees found"}
-          </div>
-      ) : (
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-       {filteredEmployees.map(emp => (
-            <div key={emp.id} className="bg-white p-4 rounded-xl shadow relative">
-              <span className={`absolute top-4 right-4 w-3 h-3 rounded-full ${emp.active ? "bg-green-500" : "bg-gray-400"}`} />
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center text-sm font-bold text-[#0B1E3F]">
-                  {getInitials(emp.name)}
-                </div>
-                <div>
-                  <h3 className="font-semibold">{emp.name}</h3>
-                  <p className="text-xs text-gray-500">{emp.code}</p>
-                </div>
-              </div>
-              <p className="text-xs mt-3">Dept: <span className="font-medium">{emp.department}</span></p>
-              <p className="text-xs">Shift: <span className="font-medium">{emp.shift}</span></p>
-              <p className="text-xs mt-2">
-                Face:{" "}
-                <span className={emp.faceRegistered ? "text-green-600" : "text-yellow-600"}>
-                  {emp.faceRegistered ? "Registered" : "Pending"}
-                </span>
-              </p>
-              <div className="flex gap-2 mt-3">
-                <button
-                  onClick={() => {
-                    const deptId  = departments.find(d => d.name === emp.department)?.id ?? 0;
-                    const shiftId = shifts.find(s => s.name === emp.shift)?.id ?? 0;
-                    setEditingEmployee(emp);
-                    setFormData({
-                      code: emp.code,
-                      name: emp.name,
-                      department_id: deptId,
-                      shift_id: shiftId,
-                      faceRegistered: emp.faceRegistered,
-                    });
-                    setOpenModal(true);
-                  }}
-                  className="flex-1 bg-gray-100 rounded py-1 text-sm flex items-center justify-center gap-1"
-                >
-                  <Pencil size={14} /> Edit
-                </button>
-                <button onClick={() => handleDelete(emp.code)} className="bg-red-100 text-red-600 px-2 rounded">
-                  <Trash2 size={14} />
-                </button>
-              </div>
             </div>
-          ))}
-        </div>
-  )}
-  </> 
-)}
-        
+          ) : (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredEmployees.map(emp => (
+                <div key={emp.id} className="bg-white p-4 rounded-xl shadow relative">
+                  <span className={`absolute top-4 right-4 w-3 h-3 rounded-full ${emp.active ? "bg-green-500" : "bg-gray-400"}`} />
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center text-sm font-bold text-[#0B1E3F]">
+                      {getInitials(emp.name)}
+                    </div>
+                    <div>
+                      <h3 className="font-semibold">{emp.name}</h3>
+                      <p className="text-xs text-gray-500">{emp.code}</p>
+                    </div>
+                  </div>
+                  <p className="text-xs mt-3">Dept: <span className="font-medium">{emp.department}</span></p>
+                  <p className="text-xs">Shift: <span className="font-medium">{emp.shift}</span></p>
+                  <p className="text-xs mt-2">
+                    Face:{" "}
+                    <span className={emp.faceRegistered ? "text-green-600" : "text-yellow-600"}>
+                      {emp.faceRegistered ? "Registered" : "Pending"}
+                    </span>
+                  </p>
+                  <div className="flex gap-2 mt-3">
+                    <button
+                      onClick={() => {
+                        const deptId  = departments.find(d => d.name === emp.department)?.id ?? 0;
+                        const shiftId = shifts.find(s => s.name === emp.shift)?.id ?? 0;
+                        setEditingEmployee(emp);
+                        setFormData({
+                          code: emp.code,
+                          name: emp.name,
+                          department_id: deptId,
+                          shift_id: shiftId,
+                          faceRegistered: emp.faceRegistered,
+                        });
+                        setOpenModal(true);
+                      }}
+                      className="flex-1 bg-gray-100 rounded py-1 text-sm flex items-center justify-center gap-1"
+                    >
+                      <Pencil size={14} /> Edit
+                    </button>
+                    <button onClick={() => handleDelete(emp.code)} className="bg-red-100 text-red-600 px-2 rounded">
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
 
       {/* MODAL */}
       {openModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-gray-200 relative p-6">
-            <button onClick={() => {
-                  setOpenModal(false);
-                     resetForm();
-            }}
-              className="absolute top-4 right-4 text-gray-500 hover:text-gray-700">
+            <button
+              onClick={() => { setOpenModal(false); resetForm(); }}
+              className="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
+            >
               <X size={18} />
             </button>
             <h2 className="text-xl font-semibold mb-6">
@@ -521,11 +515,11 @@ throw new Error("Enrollment failed");
               <div>
                 <label className="text-sm font-medium text-gray-700">Employee Code</label>
                 <input
-  value={formData.code}
-  onChange={e => setFormData({ ...formData, code: e.target.value })}
-  placeholder="EMP001"
- className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#0B1E3F]/30"
-/>
+                  value={formData.code}
+                  onChange={e => setFormData({ ...formData, code: e.target.value })}
+                  placeholder="EMP001"
+                  className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#0B1E3F]/30"
+                />
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-700">Full Name</label>
@@ -541,96 +535,88 @@ throw new Error("Enrollment failed");
               <div>
                 <label className="text-sm font-medium text-gray-700">Department</label>
                 <div className="relative mt-1">
-  <button
-    type="button"
-    onClick={(e) => {
-      e.stopPropagation();
-      setDeptOpen(!deptOpen);
-    }}
-    className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white text-left flex justify-between items-center"
-  >
-    {departments.find(d => d.id === formData.department_id)?.name || "Select Department"}
-    <span className="text-gray-400">▼</span>
-  </button>
-
-  {deptOpen && (
-    <div className="absolute z-50 mt-1 w-full bg-white border rounded-lg shadow-lg">
-      {departments.map((d) => (
-        <div
-          key={d.id}
-          onClick={() => {
-            setFormData({ ...formData, department_id: d.id });
-            setDeptOpen(false);
-          }}
-          className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
-        >
-          {d.name}
-        </div>
-      ))}
-    </div>
-  )}
-</div>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setDeptOpen(!deptOpen); }}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white text-left flex justify-between items-center"
+                  >
+                    {departments.find(d => d.id === formData.department_id)?.name || "Select Department"}
+                    <span className="text-gray-400">▼</span>
+                  </button>
+                  {deptOpen && (
+                    <div className="absolute z-50 mt-1 w-full bg-white border rounded-lg shadow-lg">
+                      {departments.map((d) => (
+                        <div
+                          key={d.id}
+                          onClick={() => { setFormData({ ...formData, department_id: d.id }); setDeptOpen(false); }}
+                          className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
+                        >
+                          {d.name}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* SHIFT DROPDOWN */}
               <div>
                 <label className="text-sm font-medium text-gray-700">Shift</label>
                 <div className="relative mt-1">
-  <button
-    type="button"
-    onClick={(e) => {
-      e.stopPropagation();
-      setShiftOpen(!shiftOpen);
-    }}
-    className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white text-left flex justify-between items-center"
-  >
-    {shifts.find(s => s.id === formData.shift_id)?.name || "Select Shift"}
-    <span className="text-gray-400">▼</span>
-  </button>
-
-  {shiftOpen && (
-    <div className="absolute z-50 mt-1 w-full bg-white border rounded-lg shadow-lg">
-      {shifts.map((s) => (
-        <div
-          key={s.id}
-          onClick={() => {
-            setFormData({ ...formData, shift_id: s.id });
-            setShiftOpen(false);
-          }}
-          className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
-        >
-          {s.name}
-        </div>
-      ))}
-    </div>
-  )}
-</div>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setShiftOpen(!shiftOpen); }}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white text-left flex justify-between items-center"
+                  >
+                    {shifts.find(s => s.id === formData.shift_id)?.name || "Select Shift"}
+                    <span className="text-gray-400">▼</span>
+                  </button>
+                  {shiftOpen && (
+                    <div className="absolute z-50 mt-1 w-full bg-white border rounded-lg shadow-lg">
+                      {shifts.map((s) => (
+                        <div
+                          key={s.id}
+                          onClick={() => { setFormData({ ...formData, shift_id: s.id }); setShiftOpen(false); }}
+                          className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
+                        >
+                          {s.name}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="flex gap-3 pt-2">
                 <button
-  onClick={() => {
-    if (editingEmployee?.faceRegistered || formData.faceRegistered) {
-      alert("✅ Face already registered for this employee.");
-      return;
-    }
-    setCapturedImages([]);
-    setOpenModal(false);
-    setOpenCamera(true);
-  }}
-  className="flex-1 flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 rounded-lg py-2 transition"
->
-  <Camera size={16} />
-  {editingEmployee?.faceRegistered || formData.faceRegistered ? "Face Registered ✅" : "Register Face"}
-</button>
-            
-<button
-  onClick={handleSave}
-  disabled={saving}
-  className="flex-1 bg-[#0B1E3F] text-white rounded-lg py-2 hover:opacity-90 transition disabled:opacity-50"
->
-  {saving ? "Saving..." : "Save"}
-</button>
+                  onClick={() => {
+                    if (editingEmployee?.faceRegistered || formData.faceRegistered) {
+                      alert("✅ Face already registered for this employee.");
+                      return;
+                    }
+                    // FIX C8: Snapshot which employee we're enrolling right now.
+                    // This ref is read by the capturedImages effect, which can
+                    // fire asynchronously long after this click handler returns.
+                    // Writing to a ref (not state) means no re-render and no
+                    // stale-closure risk — the effect always sees this value.
+                    enrollingEmployeeRef.current = editingEmployee;
+                    setCapturedImages([]);
+                    setOpenModal(false);
+                    setOpenCamera(true);
+                  }}
+                  className="flex-1 flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 rounded-lg py-2 transition"
+                >
+                  <Camera size={16} />
+                  {editingEmployee?.faceRegistered || formData.faceRegistered ? "Face Registered ✅" : "Register Face"}
+                </button>
+
+                <button
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="flex-1 bg-[#0B1E3F] text-white rounded-lg py-2 hover:opacity-90 transition disabled:opacity-50"
+                >
+                  {saving ? "Saving..." : "Save"}
+                </button>
               </div>
             </div>
           </div>

@@ -225,7 +225,6 @@ const handleUpdateUser = async () => {
     });
 
     const updatedUsers = await getAdminUsers();
-    console.log("Users after refetch:", updatedUsers);
     setUsers(updatedUsers);
 
     setEditModal(false);

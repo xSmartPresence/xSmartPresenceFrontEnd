@@ -21,9 +21,9 @@ export const getDashboardData = async (): Promise<DashboardData> => {
       aiRecognition: health.ai_recognition ?? "Unknown",
       lastSync:      health.last_sync      ?? "Unknown",
     };
-  } catch {
-    // keep defaults if API fails
-  }
+  } catch (err) {
+  console.warn("System health fetch failed, using defaults:", err);
+}
 
   return {
     summary: {

@@ -95,7 +95,6 @@ export const updateAdminUser = async (
     is_active: payload.status === "Active", // ✅ boolean
   };
 
-  console.log("FINAL UPDATE BODY 👉", body); // 🔍 debug once
 
   const raw = await apiFetch<any>(`/auth/users/${id}`, {
     method: "PUT",   // ✅ MUST be PUT
