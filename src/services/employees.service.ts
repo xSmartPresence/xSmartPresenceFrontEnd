@@ -1,24 +1,51 @@
 import { apiFetch } from "../api/apiClient";
 import type { Employee, CreateEmployeePayload, UpdateEmployeePayload } from "../types/employees.types";
 
+interface RawEmployee {
+  id?: unknown;
+  employee_id?: unknown;
+  code?: unknown;
+  full_name?: unknown;
+  name?: unknown;
+  department_name?: unknown;
+  department?: unknown;
+  shift_name?: unknown;
+  shift?: unknown;
+  face_registered?: unknown;
+  faceRegistered?: unknown;
+  is_active?: unknown;
+  active?: unknown;
+}
+
+const str = (v: unknown, fallback = ""): string =>
+  typeof v === "string" ? v : fallback;
+
+const bool = (v: unknown, fallback = false): boolean =>
+  typeof v === "boolean" ? v : fallback;
+
+const numOrStr = (v: unknown): number | string =>
+  typeof v === "number" || typeof v === "string" ? v : 0;
+
 // Maps raw API response shape → frontend Employee shape
-const mapEmployee = (e: any): Employee => ({
-  id:             e.id ?? e.employee_id,
-  code:           e.employee_id ?? e.code,
-  name:           e.full_name   ?? e.name,
-  department:     e.department_name ?? e.department ?? "",
-  shift:          e.shift_name      ?? e.shift      ?? "",
-  faceRegistered: e.face_registered ?? e.faceRegistered ?? false,
-  active:         e.is_active       ?? e.active         ?? true,
+const mapEmployee = (e: RawEmployee): Employee => ({
+  id:             numOrStr(e.id ?? e.employee_id) as number,
+  code:           str(e.employee_id) || str(e.code),
+  name:           str(e.full_name)   || str(e.name),
+  department:     str(e.department_name) || str(e.department),
+  shift:          str(e.shift_name)      || str(e.shift),
+  faceRegistered: bool(e.face_registered) || bool(e.faceRegistered),
+  active:         typeof e.is_active !== "undefined"
+    ? bool(e.is_active)
+    : bool(e.active, true),
 });
 
 export const getEmployees = async (): Promise<Employee[]> => {
-  const raw = await apiFetch<any[]>("/employees/");
+  const raw = await apiFetch<RawEmployee[]>("/employees/");
   return raw.map(mapEmployee);
 };
 
 export const createEmployee = async (payload: CreateEmployeePayload): Promise<Employee> => {
-  const raw = await apiFetch<any>("/employees/", {
+  const raw = await apiFetch<RawEmployee>("/employees/", {
     method: "POST",
     body: JSON.stringify(payload),
   });
@@ -26,7 +53,7 @@ export const createEmployee = async (payload: CreateEmployeePayload): Promise<Em
 };
 
 export const updateEmployee = async (code: string, payload: UpdateEmployeePayload): Promise<Employee> => {
-  const raw = await apiFetch<any>(`/employees/${code}`, {
+  const raw = await apiFetch<RawEmployee>(`/employees/${code}`, {
     method: "PUT",
     body: JSON.stringify(payload),
   });

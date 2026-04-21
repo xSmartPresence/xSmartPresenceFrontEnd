@@ -34,7 +34,7 @@ const Shifts = () => {
       .then(([s, d]) => { setShifts(s); setDepartments(d); })
       .catch(err => {
         console.error("Failed to load:", err);
-        setError("Failed to load data. Please refresh."); // ✅ inside .catch()
+        setError("Failed to load data. Please refresh.");
       })
       .finally(() => setLoading(false));
   }, []);
@@ -88,15 +88,16 @@ const Shifts = () => {
         return;
       }
       const start = new Date(`1970-01-01T${shiftForm.start_time}`);
-      let end = new Date(`1970-01-01T${shiftForm.end_time}`);
+      const end   = new Date(`1970-01-01T${shiftForm.end_time}`);
 
-      // 👉 Handle overnight shift (cross midnight)
-      if (end <= start) {
-        end.setDate(end.getDate() + 1);
-      }
- 
-      // ❗ Prevent same time
-      if (start.getTime() === end.getTime()) {
+      // Handle overnight shift (cross midnight) — derive a new Date instead
+      // of mutating `end`, which lets us declare it as const above.
+      const effectiveEnd = end <= start
+        ? new Date(end.getTime() + 24 * 60 * 60 * 1000)
+        : end;
+
+      // Prevent same time
+      if (start.getTime() === effectiveEnd.getTime()) {
         alert("Start and end time cannot be same");
         return;
       }
@@ -105,9 +106,9 @@ const Shifts = () => {
         return;
       }
       if ((shiftForm.overtime_minutes ?? 0) < 0) {
-         alert("Overtime minutes cannot be negative");
-         return;
-     } 
+        alert("Overtime minutes cannot be negative");
+        return;
+      }
     }
 
     // ✅ Department validations
@@ -127,11 +128,9 @@ const Shifts = () => {
     try {
       if (activeTab === "shifts") {
         if (editingShift) {
-          // ✅ Update existing shift
           const updated = await updateShift(editingShift.id, shiftForm);
           setShifts(prev => prev.map(s => s.id === editingShift.id ? updated : s));
         } else {
-          // ✅ Duplicate check only for new shifts
           const duplicate = shifts.find(
             s => s.name.toLowerCase() === shiftForm.shift_name.toLowerCase()
           );
@@ -144,11 +143,9 @@ const Shifts = () => {
         }
       } else {
         if (editingDepartment) {
-          // ✅ Update existing department
           const updated = await updateDepartment(editingDepartment.id, deptForm);
           setDepartments(prev => prev.map(d => d.id === editingDepartment.id ? updated : d));
         } else {
-          // ✅ Duplicate check only for new departments
           const duplicate = departments.find(
             d => d.name.toLowerCase() === deptForm.name.toLowerCase()
           );
@@ -161,10 +158,10 @@ const Shifts = () => {
         }
       }
       setOpenModal(false);
-    } catch (err: any) {
-      alert("Failed to save: " + err.message);
+    } catch (err: unknown) {
+      alert("Failed to save: " + (err instanceof Error ? err.message : String(err)));
     } finally {
-      setSaving(false); // ✅ always resets
+      setSaving(false);
     }
   };
 
@@ -174,8 +171,8 @@ const Shifts = () => {
     try {
       await deleteShift(id);
       setShifts(prev => prev.filter(s => s.id !== id));
-    } catch (err: any) {
-      alert("Failed to delete shift: " + err.message);
+    } catch (err: unknown) {
+      alert("Failed to delete shift: " + (err instanceof Error ? err.message : String(err)));
     }
   };
 
@@ -184,8 +181,8 @@ const Shifts = () => {
     try {
       await deleteDepartment(id);
       setDepartments(prev => prev.filter(d => d.id !== id));
-    } catch (err: any) {
-      alert("Failed to delete department: " + err.message);
+    } catch (err: unknown) {
+      alert("Failed to delete department: " + (err instanceof Error ? err.message : String(err)));
     }
   };
 

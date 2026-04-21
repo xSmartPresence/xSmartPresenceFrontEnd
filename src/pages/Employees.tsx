@@ -5,12 +5,29 @@ import { useState, useRef, useEffect } from "react";
 import * as tf from "@tensorflow/tfjs";
 import * as faceLandmarksDetection from "@tensorflow-models/face-landmarks-detection";
 import { getEmployees, createEmployee, updateEmployee, deleteEmployee, enrollEmployee } from "../services/employees.service";
-import type { Employee } from "../types/employees.types";
+import type { Employee, CreateEmployeePayload } from "../types/employees.types";
 import { apiFetch } from "../api/apiClient";
 
 // ── Types for dropdowns ───────────────────────────────────────────────────
 interface Department { id: number; name: string; }
 interface Shift      { id: number; name: string; }
+
+// Raw API shapes for department/shift dropdown fetches
+interface RawDepartment { id: number; name?: string; department_name?: string; }
+interface RawShift      { id: number; shift_name?: string; name?: string; }
+
+const errMsg = (err: unknown) =>
+  err instanceof Error ? err.message : String(err);
+
+// Defined outside the component so it's stable — no re-creation on each
+// render and no exhaustive-deps warning from the detection loop effect.
+const ANGLES = [
+  { label: "Look Straight (Front)",  check: "straight"       },
+  { label: "Turn Slightly Left",     check: "slightly-left"  },
+  { label: "Turn Left",              check: "left"           },
+  { label: "Turn Slightly Right",    check: "slightly-right" },
+  { label: "Turn Right",             check: "right"          },
+];
 
 const Employees = () => {
   const [openModal, setOpenModal]             = useState(false);
@@ -42,18 +59,10 @@ const Employees = () => {
   const [currentPose,  setCurrentPose]  = useState<string | null>(null);
   const [tfStatus,     setTfStatus]     = useState("Loading face model…");
 
-  const angles = [
-    { label: "Look Straight (Front)",  check: "straight"       },
-    { label: "Turn Slightly Left",     check: "slightly-left"  },
-    { label: "Turn Left",              check: "left"           },
-    { label: "Turn Slightly Right",    check: "slightly-right" },
-    { label: "Turn Right",             check: "right"          },
-  ];
-
   const currentStep = capturedImages.length;
-  const targetPose  = angles[currentStep]?.check ?? null;
+  const targetPose  = ANGLES[currentStep]?.check ?? null;
   const poseMatch   = faceDetected && currentPose === targetPose;
-  const allCaptured = capturedImages.length >= angles.length;
+  const allCaptured = capturedImages.length >= ANGLES.length;
 
   const [formData, setFormData] = useState({
     code: "", name: "", department_id: 0, shift_id: 0, faceRegistered: false,
@@ -70,15 +79,23 @@ const Employees = () => {
       .catch(() => {})
       .finally(() => setLoadingEmployees(false));
 
-    apiFetch<any[]>("/departments/")
+    apiFetch<RawDepartment[]>("/departments/")
       .then(data => {
-        setDepartments(Array.isArray(data) ? data.map(d => ({ id: d.id, name: d.name ?? d.department_name })) : []);
+        setDepartments(
+          Array.isArray(data)
+            ? data.map(d => ({ id: d.id, name: d.name ?? d.department_name ?? "" }))
+            : []
+        );
       })
       .catch(err => console.error("Departments error:", err));
 
-    apiFetch<any[]>("/shifts/")
+    apiFetch<RawShift[]>("/shifts/")
       .then(data => {
-        setShifts(Array.isArray(data) ? data.map(s => ({ id: s.id, name: s.shift_name ?? s.name })) : []);
+        setShifts(
+          Array.isArray(data)
+            ? data.map(s => ({ id: s.id, name: s.shift_name ?? s.name ?? "" }))
+            : []
+        );
       })
       .catch(err => console.error("Shifts error:", err));
   }, []);
@@ -135,11 +152,6 @@ const Employees = () => {
   }, []);
 
   // ── Start webcam ─────────────────────────────────────────────────────────
-  // FIX H5: Use a `cancelled` flag to guard against the stream arriving after
-  // the effect has already cleaned up (component unmounted or openCamera went
-  // false while getUserMedia was still in flight). Without this, the .then()
-  // callback assigns a live stream to a detached videoRef that will never be
-  // stopped, leaking the camera indefinitely.
   useEffect(() => {
     if (!openCamera) return;
 
@@ -148,8 +160,6 @@ const Employees = () => {
     navigator.mediaDevices.getUserMedia({ video: true })
       .then(stream => {
         if (cancelled) {
-          // Effect already cleaned up — stop the stream immediately so the
-          // browser camera indicator turns off.
           stream.getTracks().forEach(t => t.stop());
           return;
         }
@@ -169,6 +179,8 @@ const Employees = () => {
   }, [openCamera]);
 
   // ── Detection loop ────────────────────────────────────────────────────────
+  // ANGLES is defined outside the component so it's stable and doesn't need
+  // to be listed as a dependency — fixes the exhaustive-deps warning.
   useEffect(() => {
     if (!openCamera || !modelReady || allCaptured) return;
 
@@ -214,7 +226,7 @@ const Employees = () => {
           ctx.fillStyle = color;
           ctx.font      = "bold 14px sans-serif";
           ctx.fillText(
-            pose === targetPose ? "✓ Good Position" : `Adjust: ${angles[currentStep]?.label}`,
+            pose === targetPose ? "✓ Good Position" : `Adjust: ${ANGLES[currentStep]?.label}`,
             bx - 10, by - 15
           );
         } else {
@@ -246,11 +258,6 @@ const Employees = () => {
   };
 
   // ── Enroll after 5 captures ──────────────────────────────────────────────
-  // FIX C8: Read from enrollingEmployeeRef (set when camera opens) instead of
-  // the editingEmployee state variable. State reads inside effects are captured
-  // at effect-creation time and can be stale if the user navigated to a
-  // different employee while the camera was still open. The ref is always
-  // current because it is written synchronously before the camera is shown.
   useEffect(() => {
     const processEnrollment = async () => {
       if (capturedImages.length !== 5) return;
@@ -276,8 +283,8 @@ const Employees = () => {
         alert("✅ Face registered successfully!");
         setOpenCamera(false);
         setCapturedImages([]);
-      } catch (error: any) {
-        const msg: string = error.message ?? "";
+      } catch (error: unknown) {
+        const msg = errMsg(error);
         if (msg.toLowerCase().includes("expected 5 photos"))
           alert("⚠️ Photo count error: " + msg);
         else if (msg.toLowerCase().includes("no face detected"))
@@ -329,12 +336,12 @@ const Employees = () => {
 
     setSaving(true);
     try {
-      const payload: any = {
+      const payload: CreateEmployeePayload = {
         employee_id:   formData.code,
         full_name:     formData.name,
         department_id: formData.department_id,
         shift_id:      formData.shift_id,
-        is_active: editingEmployee ? editingEmployee.active : true,
+        is_active:     editingEmployee ? editingEmployee.active : true,
       };
 
       if (editingEmployee) {
@@ -345,24 +352,22 @@ const Employees = () => {
         try {
           await createEmployee(payload);
           if (capturedImages.length === 5) {
-            // FIX H4: enrollEmployee now goes through apiFetch (see
-            // employees.service.ts) so 401 responses are handled centrally,
-            // just like every other API call in this app.
             try {
               await enrollEmployee(formData.code, capturedImages);
               alert("✅ Face registered successfully!");
-            } catch (enrollError: any) {
-              alert("Employee created but face enrollment failed: " + enrollError.message);
+            } catch (enrollError: unknown) {
+              alert("Employee created but face enrollment failed: " + errMsg(enrollError));
             }
           }
           const fresh = await getEmployees();
           setEmployees(Array.isArray(fresh) ? fresh : []);
           setCapturedImages([]);
-        } catch (err: any) {
-          if (err.message.includes("400") || err.message.includes("409")) {
+        } catch (err: unknown) {
+          const msg = errMsg(err);
+          if (msg.includes("400") || msg.includes("409")) {
             alert(`⚠️ Employee with code "${formData.code}" already exists. Please use a different code.`);
           } else {
-            alert("Failed to create employee: " + err.message);
+            alert("Failed to create employee: " + msg);
           }
           return;
         }
@@ -371,8 +376,8 @@ const Employees = () => {
       setOpenModal(false);
       setEditingEmployee(null);
       setFormData({ code: "", name: "", department_id: 0, shift_id: 0, faceRegistered: false });
-    } catch (err: any) {
-      alert("Failed to save employee: " + err.message);
+    } catch (err: unknown) {
+      alert("Failed to save employee: " + errMsg(err));
     } finally {
       setSaving(false);
     }
@@ -387,8 +392,8 @@ const Employees = () => {
     try {
       await deleteEmployee(code);
       setEmployees(prev => prev.filter(emp => emp.code !== code));
-    } catch (err: any) {
-      alert("Failed to delete employee: " + err.message);
+    } catch (err: unknown) {
+      alert("Failed to delete employee: " + errMsg(err));
     }
   };
 
@@ -475,10 +480,10 @@ const Employees = () => {
                         const shiftId = shifts.find(s => s.name === emp.shift)?.id ?? 0;
                         setEditingEmployee(emp);
                         setFormData({
-                          code: emp.code,
-                          name: emp.name,
-                          department_id: deptId,
-                          shift_id: shiftId,
+                          code:           emp.code,
+                          name:           emp.name,
+                          department_id:  deptId,
+                          shift_id:       shiftId,
                           faceRegistered: emp.faceRegistered,
                         });
                         setOpenModal(true);
@@ -594,11 +599,6 @@ const Employees = () => {
                       alert("✅ Face already registered for this employee.");
                       return;
                     }
-                    // FIX C8: Snapshot which employee we're enrolling right now.
-                    // This ref is read by the capturedImages effect, which can
-                    // fire asynchronously long after this click handler returns.
-                    // Writing to a ref (not state) means no re-render and no
-                    // stale-closure risk — the effect always sees this value.
                     enrollingEmployeeRef.current = editingEmployee;
                     setCapturedImages([]);
                     setOpenModal(false);
@@ -638,7 +638,7 @@ const Employees = () => {
               <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
             </div>
             <div className="flex gap-1 mt-3">
-              {angles.map((_, i) => (
+              {ANGLES.map((_, i) => (
                 <div key={i} className={`flex-1 h-1.5 rounded-full transition-all ${
                   i < capturedImages.length ? "bg-green-500" : i === currentStep ? "bg-blue-500" : "bg-gray-200"
                 }`} />
@@ -648,13 +648,13 @@ const Employees = () => {
               {!allCaptured ? (
                 <>
                   <p className="font-semibold text-base">
-                    Step {currentStep + 1} / {angles.length}: {angles[currentStep]?.label}
+                    Step {currentStep + 1} / {ANGLES.length}: {ANGLES[currentStep]?.label}
                   </p>
                   <p className={`text-sm mt-1 font-medium ${poseMatch ? "text-green-600" : "text-amber-500"}`}>
                     {!modelReady ? "Loading model…"
                       : !faceDetected ? tfStatus || "No face detected — move closer"
                       : poseMatch ? "✅ Perfect! Press Capture"
-                      : `↩️ ${angles[currentStep]?.label}`}
+                      : `↩️ ${ANGLES[currentStep]?.label}`}
                   </p>
                 </>
               ) : (
@@ -669,7 +669,7 @@ const Employees = () => {
                   poseMatch && !isCapturing ? "bg-[#0B1E3F] hover:opacity-90" : "bg-gray-300 cursor-not-allowed"
                 }`}
               >
-                Capture ({capturedImages.length} / {angles.length})
+                Capture ({capturedImages.length} / {ANGLES.length})
               </button>
             )}
           </div>

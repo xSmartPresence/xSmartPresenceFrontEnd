@@ -33,14 +33,24 @@ import type { DashboardData } from "../types/dashboard.types";
 const WS_URL = import.meta.env.VITE_WS_URL as string;
 if (!WS_URL) throw new Error("VITE_WS_URL is not set in .env");
 
+// Shape of the live summary pushed over WebSocket
+interface LiveSummary {
+  total: number;
+  present: number;
+  absent: number;
+  late: number;
+  earlyExit: number;
+  overtime: number;
+  occupancy: number;
+}
+
 function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
-  const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [isMobile, setIsMobile] = useState(false);
   const [wsConnected, setWsConnected] = useState(false);
-  const [liveSummary, setLiveSummary] = useState<any>(null);
+  const [liveSummary, setLiveSummary] = useState<LiveSummary | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -54,8 +64,10 @@ function Dashboard() {
   }, []);
 
   // ── Initial API fetch ─────────────────────────────────────────────────────
+  // `mounted` state was previously used to gate chart rendering, but React 18
+  // renders charts fine without it. Removing it eliminates the
+  // react/no-direct-mutation-state (setState directly in useEffect) lint error.
   useEffect(() => {
-    setMounted(true);
     getDashboardData()
       .then((res) => {
         setData(res);
@@ -83,15 +95,15 @@ function Dashboard() {
 
         ws.onmessage = (event) => {
           try {
-            const msg = JSON.parse(event.data);
+            const msg = JSON.parse(event.data) as Record<string, unknown>;
             setLiveSummary({
-              total:     msg.total      ?? msg.total_employees  ?? 0,
-              present:   msg.present    ?? msg.present_today    ?? 0,
-              absent:    msg.absent     ?? msg.absent_today     ?? 0,
-              late:      msg.late       ?? msg.late_arrivals    ?? 0,
-              earlyExit: msg.earlyExit  ?? msg.early_exits      ?? 0,
-              overtime:  msg.overtime   ?? msg.overtime_count   ?? 0,
-              occupancy: msg.occupancy  ?? msg.office_occupancy ?? 0,
+              total:     (msg.total      ?? msg.total_employees  ?? 0) as number,
+              present:   (msg.present    ?? msg.present_today    ?? 0) as number,
+              absent:    (msg.absent     ?? msg.absent_today     ?? 0) as number,
+              late:      (msg.late       ?? msg.late_arrivals    ?? 0) as number,
+              earlyExit: (msg.earlyExit  ?? msg.early_exits      ?? 0) as number,
+              overtime:  (msg.overtime   ?? msg.overtime_count   ?? 0) as number,
+              occupancy: (msg.occupancy  ?? msg.office_occupancy ?? 0) as number,
             });
           } catch (e) {
             console.error("WS parse error:", e);
@@ -229,37 +241,35 @@ function Dashboard() {
         {/* LINE CHART */}
         <Box className="lg:col-span-8">
           <h3 className="text-sm font-semibold mb-3">Attendance Trend (Weekly)</h3>
-          {mounted && (
-            <ResponsiveContainer width="100%" height={240}>
-              <LineChart data={filledData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="4 4" stroke="#e5e7eb" vertical={false} />
-                <XAxis
-                  dataKey="day"
-                  tick={{ fontSize: 12, fill: "#6b7280" }}
-                  axisLine={{ stroke: "#111827", strokeWidth: 1 }}
-                  tickLine={{ stroke: "#111827", strokeWidth: 1 }}
-                  tickMargin={8}
-                />
-                <YAxis
-                  domain={[0, yAxisMax]}
-                  ticks={Array.from({ length: yAxisMax / yAxisGap + 1 }, (_, i) => i * yAxisGap)}
-                  tick={{ fontSize: 12, fill: "#6b7280" }}
-                  axisLine={{ stroke: "#111827", strokeWidth: 1 }}
-                  tickLine={{ stroke: "#111827", strokeWidth: 1 }}
-                  allowDecimals={false}
-                />
-                <Tooltip />
-                <Line type="monotone" dataKey="present" stroke="#22c55e" strokeWidth={2.5}
-                  dot={{ r: 4, fill: "#fff", stroke: "#22c55e", strokeWidth: 2 }}
-                  activeDot={{ r: 6, fill: "#fff", stroke: "#22c55e", strokeWidth: 2 }}
-                />
-                <Line type="monotone" dataKey="absent" stroke="#ef4444" strokeWidth={2.5}
-                  dot={{ r: 4, fill: "#fff", stroke: "#ef4444", strokeWidth: 2 }}
-                  activeDot={{ r: 6, fill: "#fff", stroke: "#ef4444", strokeWidth: 2 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          )}
+          <ResponsiveContainer width="100%" height={240}>
+            <LineChart data={filledData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="4 4" stroke="#e5e7eb" vertical={false} />
+              <XAxis
+                dataKey="day"
+                tick={{ fontSize: 12, fill: "#6b7280" }}
+                axisLine={{ stroke: "#111827", strokeWidth: 1 }}
+                tickLine={{ stroke: "#111827", strokeWidth: 1 }}
+                tickMargin={8}
+              />
+              <YAxis
+                domain={[0, yAxisMax]}
+                ticks={Array.from({ length: yAxisMax / yAxisGap + 1 }, (_, i) => i * yAxisGap)}
+                tick={{ fontSize: 12, fill: "#6b7280" }}
+                axisLine={{ stroke: "#111827", strokeWidth: 1 }}
+                tickLine={{ stroke: "#111827", strokeWidth: 1 }}
+                allowDecimals={false}
+              />
+              <Tooltip />
+              <Line type="monotone" dataKey="present" stroke="#22c55e" strokeWidth={2.5}
+                dot={{ r: 4, fill: "#fff", stroke: "#22c55e", strokeWidth: 2 }}
+                activeDot={{ r: 6, fill: "#fff", stroke: "#22c55e", strokeWidth: 2 }}
+              />
+              <Line type="monotone" dataKey="absent" stroke="#ef4444" strokeWidth={2.5}
+                dot={{ r: 4, fill: "#fff", stroke: "#ef4444", strokeWidth: 2 }}
+                activeDot={{ r: 6, fill: "#fff", stroke: "#ef4444", strokeWidth: 2 }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
         </Box>
 
         {/* SYSTEM HEALTH */}
@@ -297,28 +307,26 @@ function Dashboard() {
         {/* PIE */}
         <div className="bg-white rounded-xl shadow-sm w-full lg:col-span-6 px-4 pt-4 pb-2">
           <h3 className="text-sm font-semibold mb-1">Today's Distribution</h3>
-          {mounted && (
-            <ResponsiveContainer width="100%" height={pieHeight}>
-              <PieChart>
-                <Pie
-                  data={fixedPieData}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="50%"
-                  cy="42%"
-                  innerRadius={pieInnerRadius}
-                  outerRadius={pieOuterRadius}
-                  paddingAngle={4}
-                >
-                  {fixedPieData.map((_, i) => (
-                    <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-                <Legend verticalAlign="bottom" height={40} />
-              </PieChart>
-            </ResponsiveContainer>
-          )}
+          <ResponsiveContainer width="100%" height={pieHeight}>
+            <PieChart>
+              <Pie
+                data={fixedPieData}
+                dataKey="value"
+                nameKey="name"
+                cx="50%"
+                cy="42%"
+                innerRadius={pieInnerRadius}
+                outerRadius={pieOuterRadius}
+                paddingAngle={4}
+              >
+                {fixedPieData.map((_, i) => (
+                  <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                ))}
+              </Pie>
+              <Tooltip />
+              <Legend verticalAlign="bottom" height={40} />
+            </PieChart>
+          </ResponsiveContainer>
           {fixedPieData.length === 0 && (
             <p className="text-center text-xs text-gray-400 mt-2 pb-4">No data for today</p>
           )}
@@ -327,37 +335,35 @@ function Dashboard() {
         {/* BAR */}
         <div className="bg-white rounded-xl shadow-sm w-full lg:col-span-6 px-4 pt-4 pb-2">
           <h3 className="text-sm font-semibold mb-1">Department-wise Attendance</h3>
-          {mounted && (
-            <ResponsiveContainer width="100%" height={barHeight}>
-              <BarChart
-                data={deptData}
-                margin={{ top: 10, right: 10, left: 0, bottom: 20 }}
-                barCategoryGap="20%"
-                barGap={3}
-              >
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis
-                  dataKey="name"
-                  tick={{ fontSize: isMobile ? 10 : 12, fill: "#6b7280" }}
-                  axisLine={{ stroke: "#111827", strokeWidth: 1 }}
-                  tickLine={{ stroke: "#111827", strokeWidth: 1 }}
-                  interval={0}
-                />
-                <YAxis
-                  domain={[0, barYAxisMax]}
-                  ticks={Array.from({ length: Math.floor(barYAxisMax / safeBarGap) + 1 }, (_, i) => i * safeBarGap)}
-                  tick={{ fontSize: 12, fill: "#6b7280" }}
-                  axisLine={{ stroke: "#111827", strokeWidth: 1 }}
-                  tickLine={{ stroke: "#111827", strokeWidth: 1 }}
-                  allowDecimals={false}
-                />
-                <Tooltip />
-                <Legend height={36} />
-                <Bar dataKey="present" fill="#1e3a8a" barSize={barSize} radius={[6, 6, 0, 0]} />
-                <Bar dataKey="absent"  fill="#ef4444" barSize={barSize} radius={[6, 6, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
+          <ResponsiveContainer width="100%" height={barHeight}>
+            <BarChart
+              data={deptData}
+              margin={{ top: 10, right: 10, left: 0, bottom: 20 }}
+              barCategoryGap="20%"
+              barGap={3}
+            >
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis
+                dataKey="name"
+                tick={{ fontSize: isMobile ? 10 : 12, fill: "#6b7280" }}
+                axisLine={{ stroke: "#111827", strokeWidth: 1 }}
+                tickLine={{ stroke: "#111827", strokeWidth: 1 }}
+                interval={0}
+              />
+              <YAxis
+                domain={[0, barYAxisMax]}
+                ticks={Array.from({ length: Math.floor(barYAxisMax / safeBarGap) + 1 }, (_, i) => i * safeBarGap)}
+                tick={{ fontSize: 12, fill: "#6b7280" }}
+                axisLine={{ stroke: "#111827", strokeWidth: 1 }}
+                tickLine={{ stroke: "#111827", strokeWidth: 1 }}
+                allowDecimals={false}
+              />
+              <Tooltip />
+              <Legend height={36} />
+              <Bar dataKey="present" fill="#1e3a8a" barSize={barSize} radius={[6, 6, 0, 0]} />
+              <Bar dataKey="absent"  fill="#ef4444" barSize={barSize} radius={[6, 6, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
 
       </div>

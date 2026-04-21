@@ -9,37 +9,75 @@ import type {
   UpdateSystemSettingsPayload,
 } from "../types/settings.types";
 
-const mapSettings = (s: any): SystemSettings => ({
-  confidenceThreshold: Math.round((s.confidence_threshold ?? 0.80) * 100), // 0.80 → 80
-  duplicateWindow:     s.duplicate_window_seconds ?? 30,
-  gracePeriod:         s.grace_minutes ?? 15,
-  overtimeAfter:       s.working_hours ?? 9,
+interface RawSettings {
+  confidence_threshold?: unknown;
+  duplicate_window_seconds?: unknown;
+  grace_minutes?: unknown;
+  working_hours?: unknown;
+}
+
+interface RawHoliday {
+  id?: unknown;
+  name?: unknown;
+  holiday_date?: unknown;
+  type?: unknown;
+  day?: unknown;
+}
+
+interface RawAdminUser {
+  id?: unknown;
+  user_id?: unknown;
+  _id?: unknown;
+  username?: unknown;
+  name?: unknown;
+  full_name?: unknown;
+  email?: unknown;
+  role?: unknown;
+  is_active?: unknown;
+}
+
+const num = (v: unknown, fallback = 0): number =>
+  typeof v === "number" ? v : fallback;
+
+const str = (v: unknown, fallback = ""): string =>
+  typeof v === "string" ? v : fallback;
+
+const bool = (v: unknown, fallback = false): boolean =>
+  typeof v === "boolean" ? v : fallback;
+
+const mapSettings = (s: RawSettings): SystemSettings => ({
+  confidenceThreshold: Math.round((num(s.confidence_threshold, 0.80)) * 100), // 0.80 → 80
+  duplicateWindow:     num(s.duplicate_window_seconds, 30),
+  gracePeriod:         num(s.grace_minutes, 15),
+  overtimeAfter:       num(s.working_hours, 9),
 });
 
-const mapHoliday = (h: any): Holiday => ({
-  id: h.id,
-  name: h.name,
-  date: h.holiday_date,   // ✅ FIXED
-  type: h.type,
-  description: h.day,     // optional (or remove if not needed)
+const mapHoliday = (h: RawHoliday): Holiday => ({
+  id:          num(h.id),
+  name:        str(h.name),
+  date:        str(h.holiday_date),   // API field → frontend field
+  type:        str(h.type),
+  description: str(h.day),           // optional day label
 });
 
-const mapAdminUser = (u: any): AdminUser => ({
-  id: u.id ?? u.user_id ?? u._id ?? null,   // ✅ handle all cases
-  name: u.username ?? u.name ?? u.full_name ?? "",
-  email: u.email,
-  role: u.role,
-  status: u.is_active ? "Active" : "Inactive",
+const mapAdminUser = (u: RawAdminUser): AdminUser => ({
+  id:     num(u.id ?? u.user_id),    // handle all id variants
+  name:   str(u.username) || str(u.name) || str(u.full_name),
+  email:  str(u.email),
+  role:   str(u.role),
+  status: bool(u.is_active) ? "Active" : "Inactive",
 });
 
 // SYSTEM
 export const getSystemSettings = async (): Promise<SystemSettings> => {
-  const raw = await apiFetch<any>("/settings/");
+  const raw = await apiFetch<RawSettings>("/settings/");
   return mapSettings(raw);
 };
 
-export const updateSystemSettings = async (payload: UpdateSystemSettingsPayload) => {
-  const raw = await apiFetch<any>("/settings/", {
+export const updateSystemSettings = async (
+  payload: UpdateSystemSettingsPayload
+): Promise<SystemSettings> => {
+  const raw = await apiFetch<RawSettings>("/settings/", {
     method: "PUT",
     body: JSON.stringify(payload),
   });
@@ -48,56 +86,55 @@ export const updateSystemSettings = async (payload: UpdateSystemSettingsPayload)
 
 // HOLIDAYS
 export const getHolidays = async (): Promise<Holiday[]> => {
-  const raw = await apiFetch<any[]>("/holidays/");
+  const raw = await apiFetch<RawHoliday[]>("/holidays/");
   return raw.map(mapHoliday);
 };
 
-export const createHoliday = async (payload: CreateHolidayPayload) => {
-  const raw = await apiFetch<any>("/holidays/", {
+export const createHoliday = async (payload: CreateHolidayPayload): Promise<Holiday> => {
+  const raw = await apiFetch<RawHoliday>("/holidays/", {
     method: "POST",
     body: JSON.stringify(payload),
   });
   return mapHoliday(raw);
 };
 
-export const deleteHoliday = async (id: number) => {
-  return apiFetch(`/holidays/${id}`, { method: "DELETE" });
+export const deleteHoliday = async (id: number): Promise<void> => {
+  return apiFetch<void>(`/holidays/${id}`, { method: "DELETE" });
 };
 
 // USERS
 export const getAdminUsers = async (): Promise<AdminUser[]> => {
-  const raw = await apiFetch<any[]>("/auth/users");
+  const raw = await apiFetch<RawAdminUser[]>("/auth/users");
   if (!Array.isArray(raw)) return [];
   return raw.map(mapAdminUser);
 };
 
-export const createAdminUser = async (payload: CreateAdminPayload) => {
-  const raw = await apiFetch<any>("/auth/create-user", {
+export const createAdminUser = async (payload: CreateAdminPayload): Promise<AdminUser> => {
+  const raw = await apiFetch<RawAdminUser>("/auth/create-user", {
     method: "POST",
     body: JSON.stringify({
-      username: payload.name,              // ✅ must be username
+      username: payload.name,              // must be username
       email: payload.email,
       password: payload.password,
-      role: payload.role.toLowerCase(),    // ✅ must be lowercase
+      role: payload.role.toLowerCase(),    // must be lowercase
     }),
   });
-
   return mapAdminUser(raw);
 };
+
 export const updateAdminUser = async (
   id: number,
   payload: UpdateAdminPayload
 ): Promise<AdminUser> => {
   const body = {
-    username: payload.name,                 // ✅ correct field
-    email: payload.email,
-    role: payload.role.toLowerCase(),       // ✅ lowercase
-    is_active: payload.status === "Active", // ✅ boolean
+    username:  payload.name,                  // correct field
+    email:     payload.email,
+    role:      payload.role.toLowerCase(),    // lowercase
+    is_active: payload.status === "Active",   // boolean
   };
 
-
-  const raw = await apiFetch<any>(`/auth/users/${id}`, {
-    method: "PUT",   // ✅ MUST be PUT
+  const raw = await apiFetch<RawAdminUser>(`/auth/users/${id}`, {
+    method: "PUT",
     body: JSON.stringify(body),
   });
 

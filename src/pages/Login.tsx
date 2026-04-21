@@ -66,7 +66,7 @@ function Login() {
     setError("");
     navigate("/dashboard");
 
-  } catch (err) {
+  } catch {
   setError("Server connection error");
 } finally {
   setLoading(false);  

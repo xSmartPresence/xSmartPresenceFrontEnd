@@ -18,6 +18,9 @@ const correctionReasons = [
   "Other",
 ];
 
+const errMsg = (err: unknown) =>
+  err instanceof Error ? err.message : String(err);
+
 const Anomalies = () => {
   const [showResolved, setShowResolved]         = useState(false);
   const [data, setData]                         = useState<Anomaly[]>([]);
@@ -30,20 +33,20 @@ const Anomalies = () => {
   const [editForm, setEditForm]                 = useState({
     title: "", description: "", severity: "MEDIUM", employee: "",
   });
- const [severityOpen, setSeverityOpen] = useState(false);
- const [reasonOpen, setReasonOpen] = useState(false);
- const [viewingImage, setViewingImage] = useState<string | null>(null);
- const [editSubmitting, setEditSubmitting] = useState(false);
- useEffect(() => {
-  const close = () => {
-    setReasonOpen(false);
-    setSeverityOpen(false);
-  };
-  
+  const [severityOpen, setSeverityOpen] = useState(false);
+  const [reasonOpen, setReasonOpen]     = useState(false);
+  const [viewingImage, setViewingImage] = useState<string | null>(null);
+  const [editSubmitting, setEditSubmitting] = useState(false);
 
-  document.addEventListener("click", close);
-  return () => document.removeEventListener("click", close);
-}, []);
+  useEffect(() => {
+    const close = () => {
+      setReasonOpen(false);
+      setSeverityOpen(false);
+    };
+    document.addEventListener("click", close);
+    return () => document.removeEventListener("click", close);
+  }, []);
+
   // ── Fetch anomalies on mount ──────────────────────────────────────────────
   useEffect(() => {
     getAnomalies()
@@ -59,8 +62,8 @@ const Anomalies = () => {
       setData(prev =>
         prev.map(item => item.id === id ? { ...item, resolved: true } : item)
       );
-    } catch (err: any) {
-      alert("Failed to resolve anomaly: " + err.message);
+    } catch (err: unknown) {
+      alert("Failed to resolve anomaly: " + errMsg(err));
     }
   };
 
@@ -68,10 +71,10 @@ const Anomalies = () => {
   const handleManualCorrect = async () => {
     if (!correctingId) return;
 
-if (!correctionReason.trim()) {
-    alert("Please select a correction reason");
-    return;
-  }
+    if (!correctionReason.trim()) {
+      alert("Please select a correction reason");
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -82,8 +85,8 @@ if (!correctionReason.trim()) {
       setCorrectingId(null);
       setCorrectionReason(correctionReasons[0]);
       setCorrectionNotes("");
-    } catch (err: any) {
-      alert("Failed to correct anomaly: " + err.message);
+    } catch (err: unknown) {
+      alert("Failed to correct anomaly: " + errMsg(err));
     } finally {
       setSubmitting(false);
     }
@@ -95,8 +98,8 @@ if (!correctionReason.trim()) {
     try {
       await deleteAnomaly(id);
       setData(prev => prev.filter(item => item.id !== id));
-    } catch (err: any) {
-      alert("Failed to delete anomaly: " + err.message);
+    } catch (err: unknown) {
+      alert("Failed to delete anomaly: " + errMsg(err));
     }
   };
 
@@ -104,19 +107,20 @@ if (!correctionReason.trim()) {
   const handleEditSubmit = async () => {
     if (!editingAnomaly) return;
 
- if (!editForm.title.trim()) {
-    alert("Title is required");
-    return;
-  }
-  if (!editForm.description.trim()) {
-    alert("Description is required");
-    return;
-  }
-  if (!editForm.employee.trim()) {
-    alert("Employee is required");
-    return;
-  }
-  setEditSubmitting(true);
+    if (!editForm.title.trim()) {
+      alert("Title is required");
+      return;
+    }
+    if (!editForm.description.trim()) {
+      alert("Description is required");
+      return;
+    }
+    if (!editForm.employee.trim()) {
+      alert("Employee is required");
+      return;
+    }
+
+    setEditSubmitting(true);
     try {
       const updated = await updateAnomaly(editingAnomaly.id, {
         title:       editForm.title,
@@ -128,11 +132,11 @@ if (!correctionReason.trim()) {
         prev.map(item => item.id === editingAnomaly.id ? updated : item)
       );
       setEditingAnomaly(null);
-    } catch (err: any) {
-      alert("Failed to update anomaly: " + err.message);
+    } catch (err: unknown) {
+      alert("Failed to update anomaly: " + errMsg(err));
     } finally {
-    setEditSubmitting(false);  
-  }
+      setEditSubmitting(false);
+    }
   };
 
   const filtered = showResolved
@@ -150,23 +154,23 @@ if (!correctionReason.trim()) {
         </div>
         <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
 
-  {/* ADD ANOMALY */}
- <button
-  disabled
-  className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#0B1E3F] text-white px-4 py-2 text-sm rounded-lg opacity-50 cursor-not-allowed"
->
-  + Add Anomaly
-</button>
+          {/* ADD ANOMALY */}
+          <button
+            disabled
+            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#0B1E3F] text-white px-4 py-2 text-sm rounded-lg opacity-50 cursor-not-allowed"
+          >
+            + Add Anomaly
+          </button>
 
-  {/* SHOW RESOLVED */}
-  <button
-    onClick={() => setShowResolved(!showResolved)}
-    className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm border border-slate-300 bg-white text-slate-800 shadow-sm hover:bg-slate-50 hover:border-slate-400 transition"
-  >
-    {showResolved ? "Hide Resolved" : "Show Resolved"}
-  </button>
+          {/* SHOW RESOLVED */}
+          <button
+            onClick={() => setShowResolved(!showResolved)}
+            className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm border border-slate-300 bg-white text-slate-800 shadow-sm hover:bg-slate-50 hover:border-slate-400 transition"
+          >
+            {showResolved ? "Hide Resolved" : "Show Resolved"}
+          </button>
 
-</div>
+        </div>
       </div>
 
       {/* ALERT BAR */}
@@ -219,18 +223,18 @@ if (!correctionReason.trim()) {
                 {/* ACTION BUTTONS */}
                 <div className="flex flex-wrap items-center gap-2 self-start md:self-center">
 
-            {/* VIEW FACE  */}
-            <button
-              onClick={() => item.image ? setViewingImage(item.image) : alert("No image available")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border rounded-md transition
-              ${item.image
-              ? "border-gray-300 bg-white hover:bg-gray-50 text-gray-700 cursor-pointer"
-             : "border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed"
-     }`}
->
-             <Eye size={14} />
-                View Face
-            </button>
+                  {/* VIEW FACE */}
+                  <button
+                    onClick={() => item.image ? setViewingImage(item.image) : alert("No image available")}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border rounded-md transition
+                    ${item.image
+                      ? "border-gray-300 bg-white hover:bg-gray-50 text-gray-700 cursor-pointer"
+                      : "border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed"
+                    }`}
+                  >
+                    <Eye size={14} />
+                    View Face
+                  </button>
 
                   {!item.resolved && (
                     <>
@@ -246,7 +250,7 @@ if (!correctionReason.trim()) {
                       </button>
                       <button
                         onClick={() => markResolved(item.id)}
-                       className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-[#0B1E3F] text-white rounded-md hover:opacity-90 transition"
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-[#0B1E3F] text-white rounded-md hover:opacity-90 transition"
                       >
                         ✓ Resolve
                       </button>
@@ -295,41 +299,32 @@ if (!correctionReason.trim()) {
             <div className="space-y-4">
               <div>
                 <label className="text-sm font-medium text-gray-700">Correction Reason</label>
-                 <div className="relative mt-1">
-  {/* BUTTON */}
-  <button
-    type="button"
-    onClick={(e) => {
-      e.stopPropagation();
-      setReasonOpen(!reasonOpen);
-    }}
-    className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white text-left flex justify-between items-center focus:outline-none focus:ring-2 focus:ring-[#0B1E3F]"
-  >
-    {correctionReason}
-    <span className="text-gray-400">▼</span>
-  </button>
-
-  {/* DROPDOWN */}
-  {reasonOpen && (
-    <div
-      className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg"
-      onClick={(e) => e.stopPropagation()}
-    >
-      {correctionReasons.map((reason) => (
-        <div
-          key={reason}
-          onClick={() => {
-            setCorrectionReason(reason);
-            setReasonOpen(false);
-          }}
-          className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
-        >
-          {reason}
-        </div>
-      ))}
-    </div>
-  )}
-</div>
+                <div className="relative mt-1">
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setReasonOpen(!reasonOpen); }}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white text-left flex justify-between items-center focus:outline-none focus:ring-2 focus:ring-[#0B1E3F]"
+                  >
+                    {correctionReason}
+                    <span className="text-gray-400">▼</span>
+                  </button>
+                  {reasonOpen && (
+                    <div
+                      className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {correctionReasons.map((reason) => (
+                        <div
+                          key={reason}
+                          onClick={() => { setCorrectionReason(reason); setReasonOpen(false); }}
+                          className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
+                        >
+                          {reason}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-700">Notes (optional)</label>
@@ -393,38 +388,29 @@ if (!correctionReason.trim()) {
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-700">Severity</label>
-                 <div className="relative mt-1">
-  {/* BUTTON */}
-  <button
-    type="button"
-    onClick={(e) => {
-  e.stopPropagation();
-  setSeverityOpen(!severityOpen);
-  }}
-    className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white text-left flex justify-between items-center focus:outline-none focus:ring-2 focus:ring-[#0B1E3F]"
-  >
-    {editForm.severity}
-    <span className="text-gray-400">▼</span>
-  </button>
-
-  {/* DROPDOWN */}
-  {severityOpen && (
-    <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg">
-      {["CRITICAL", "HIGH", "MEDIUM", "LOW"].map((level) => (
-        <div
-          key={level}
-          onClick={() => {
-            setEditForm({ ...editForm, severity: level });
-            setSeverityOpen(false);
-          }}
-          className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
-        >
-          {level.charAt(0) + level.slice(1).toLowerCase()}
-        </div>
-      ))}
-    </div>
-  )}
-</div>
+                <div className="relative mt-1">
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setSeverityOpen(!severityOpen); }}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white text-left flex justify-between items-center focus:outline-none focus:ring-2 focus:ring-[#0B1E3F]"
+                  >
+                    {editForm.severity}
+                    <span className="text-gray-400">▼</span>
+                  </button>
+                  {severityOpen && (
+                    <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg">
+                      {["CRITICAL", "HIGH", "MEDIUM", "LOW"].map((level) => (
+                        <div
+                          key={level}
+                          onClick={() => { setEditForm({ ...editForm, severity: level }); setSeverityOpen(false); }}
+                          className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
+                        >
+                          {level.charAt(0) + level.slice(1).toLowerCase()}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-700">Employee</label>
@@ -444,8 +430,8 @@ if (!correctionReason.trim()) {
               </button>
               <button
                 onClick={handleEditSubmit}
-                 disabled={editSubmitting} 
-               className="flex-1 bg-[#0B1E3F] text-white rounded-lg py-2 text-sm hover:opacity-90 transition disabled:opacity-50"
+                disabled={editSubmitting}
+                className="flex-1 bg-[#0B1E3F] text-white rounded-lg py-2 text-sm hover:opacity-90 transition disabled:opacity-50"
               >
                 {editSubmitting ? "Saving..." : "Save Changes"}
               </button>
@@ -455,34 +441,34 @@ if (!correctionReason.trim()) {
       )}
 
       {/* VIEW FACE MODAL */}
-{viewingImage && (
-  <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
-    <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl relative p-6">
-      <button
-        onClick={() => setViewingImage(null)}
-        className="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
-      >
-        <X size={18} />
-      </button>
-      <h2 className="text-lg font-semibold mb-4">Face Image</h2>
-      <img
-      src={`data:image/jpeg;base64,${viewingImage}`}
-      alt="Anomaly face"
-      className="w-full rounded-xl object-cover"
-      onError={(e) => {
-      (e.target as HTMLImageElement).src = "";  
-      alert("Failed to load image");
-      }}
-      />
-      <button
-        onClick={() => setViewingImage(null)}
-        className="mt-4 w-full border border-gray-300 rounded-lg py-2 text-sm hover:bg-gray-50 transition"
-      >
-        Close
-      </button>
-    </div>
-  </div>
-)}
+      {viewingImage && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
+          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl relative p-6">
+            <button
+              onClick={() => setViewingImage(null)}
+              className="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
+            >
+              <X size={18} />
+            </button>
+            <h2 className="text-lg font-semibold mb-4">Face Image</h2>
+            <img
+              src={`data:image/jpeg;base64,${viewingImage}`}
+              alt="Anomaly face"
+              className="w-full rounded-xl object-cover"
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = "";
+                alert("Failed to load image");
+              }}
+            />
+            <button
+              onClick={() => setViewingImage(null)}
+              className="mt-4 w-full border border-gray-300 rounded-lg py-2 text-sm hover:bg-gray-50 transition"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
 
     </div>
   );

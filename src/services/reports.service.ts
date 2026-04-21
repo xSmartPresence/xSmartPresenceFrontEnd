@@ -1,14 +1,33 @@
 import { apiFetch } from "../api/apiClient";
 import type { ReportRecord, ReportQueryParams } from "../types/reports.types";
 
+interface RawReport {
+  employee_id?: unknown;
+  code?: unknown;
+  full_name?: unknown;
+  name?: unknown;
+  department?: unknown;
+  date?: unknown;
+  status?: unknown;
+  hours?: unknown;
+  total_hours?: unknown;
+}
+
+const str = (v: unknown, fallback = ""): string =>
+  typeof v === "string" ? v : fallback;
+
 // Maps raw API response → frontend ReportRecord shape
-const mapReport = (r: any): ReportRecord => ({
-  code:       r.employee_id  ?? r.code       ?? "",
-  name:       r.full_name    ?? r.name        ?? "",
-  department: r.department   ?? "",
-  date:       r.date         ?? "",
-  status:     r.status       ?? "",
-  hours:      r.hours        ?? r.total_hours ?? "-",
+const mapReport = (r: RawReport): ReportRecord => ({
+  code:       str(r.employee_id) || str(r.code),
+  name:       str(r.full_name)   || str(r.name),
+  department: str(r.department),
+  date:       str(r.date),
+  status:     str(r.status),
+  hours:      typeof r.hours !== "undefined"
+    ? String(r.hours)
+    : typeof r.total_hours !== "undefined"
+      ? String(r.total_hours)
+      : "-",
 });
 
 export const getReports = async (params: ReportQueryParams): Promise<ReportRecord[]> => {
@@ -21,11 +40,15 @@ export const getReports = async (params: ReportQueryParams): Promise<ReportRecor
   if (params.start_date) query.append("start_date", params.start_date);
   if (params.end_date)   query.append("end_date", params.end_date);
 
-  const raw = await apiFetch<any>(`/reports/?${query.toString()}`);
+  const raw = await apiFetch<RawReport[] | { data: RawReport[] } | null>(
+    `/reports/?${query.toString()}`
+  );
 
   if (!raw) return [];
   if (Array.isArray(raw)) return raw.map(mapReport);
-  if (Array.isArray(raw.data)) return raw.data.map(mapReport);
+  if (typeof raw === "object" && "data" in raw && Array.isArray(raw.data)) {
+    return raw.data.map(mapReport);
+  }
 
   return [];
 };

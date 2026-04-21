@@ -19,10 +19,12 @@ export interface CreateShiftPayload {
   start_time: string;
   end_time: string;
   grace_minutes: number;
- overtime_minutes?: number;
+  overtime_minutes?: number;
 }
 
-export interface UpdateShiftPayload extends CreateShiftPayload {}
+// UpdateShiftPayload is identical to CreateShiftPayload — using a type alias
+// instead of an empty interface avoids the @typescript-eslint/no-empty-object-type lint error.
+export type UpdateShiftPayload = CreateShiftPayload;
 
 export interface CreateDepartmentPayload {
   name: string;
@@ -30,4 +32,5 @@ export interface CreateDepartmentPayload {
   employee_count: number;
 }
 
-export interface UpdateDepartmentPayload extends CreateDepartmentPayload {}
+// Same rationale as UpdateShiftPayload above.
+export type UpdateDepartmentPayload = CreateDepartmentPayload;

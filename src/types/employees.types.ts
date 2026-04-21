@@ -16,4 +16,6 @@ export interface CreateEmployeePayload {
   is_active: boolean;
 }
 
-export interface UpdateEmployeePayload extends CreateEmployeePayload {}
+// UpdateEmployeePayload is identical to CreateEmployeePayload — using a type
+// alias instead of an empty interface avoids the @typescript-eslint/no-empty-object-type lint error.
+export type UpdateEmployeePayload = CreateEmployeePayload;
