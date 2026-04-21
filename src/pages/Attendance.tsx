@@ -14,9 +14,15 @@ function Attendance() {
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [dateError, setDateError] = useState("");
   const [deptOpen, setDeptOpen] = useState(false);
   const [searchInput, setSearchInput] = useState("");
   const [activeTab, setActiveTab] = useState<"table" | "calendar">("table");
+
+  const departments = [
+    "All",
+    ...Array.from(new Set(records.map((r) => r.department))).sort(),
+  ];
 
   useEffect(() => {
     const close = () => setDeptOpen(false);
@@ -65,13 +71,23 @@ function Attendance() {
     }
   };
 
+  const sanitizeCSV = (value: unknown): string => {
+    const str = String(value ?? "-");
+    return /^[=+\-@]/.test(str) ? `'${str}` : str;
+  };
+
   const handleExportCSV = () => {
-    if (records.length === 0) { alert("No records to export"); return; }
+    if (records.length === 0) {
+      setError("No records to export");
+      return;
+    }
     const headers = ["Code","Name","Department","Date","Shift","In","Out","Hours","Status","Anomaly"];
-    const rows = records.map((r) => [
-      r.code, r.name, r.department, r.date, r.shift,
-      r.in, r.out, calculateHours(r.in, r.out), r.status, r.anomaly || "-",
-    ]);
+    const rows = records.map((r) =>
+      [
+        r.code, r.name, r.department, r.date, r.shift,
+        r.in, r.out, calculateHours(r.in, r.out), r.status, r.anomaly || "-",
+      ].map(sanitizeCSV)
+    );
     const csvContent = [headers, ...rows].map((row) => row.join(",")).join("\n");
     const blob = new Blob([csvContent], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -113,7 +129,11 @@ function Attendance() {
             <DatePicker
               selected={selectedDate}
               onChange={(date: Date | null) => {
-                if (date && date > new Date()) { alert("Cannot select a future date"); return; }
+                if (date && date > new Date()) {
+                  setDateError("Cannot select a future date");
+                  return;
+                }
+                setDateError("");
                 if (date) setSelectedDate(date);
               }}
               popperPlacement="bottom-start"
@@ -148,6 +168,12 @@ function Attendance() {
 
       {activeTab === "table" ? (
         <>
+          {dateError && (
+            <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 text-yellow-700 rounded-lg text-sm">
+              {dateError}
+            </div>
+          )}
+
           {error && (
             <div className="mb-4 p-4 bg-red-50 border border-red-200 text-red-600 rounded-lg text-sm">
               {error}
@@ -178,7 +204,7 @@ function Attendance() {
               </button>
               {deptOpen && (
                 <div className="absolute z-50 mt-1 w-full bg-white border rounded-lg shadow-lg">
-                  {["All", "Engineering", "Marketing", "HR", "Finance", "Sales"].map((dept) => (
+                  {departments.map((dept) => (
                     <div
                       key={dept}
                       onClick={() => { setDepartment(dept); setDeptOpen(false); }}

@@ -4,6 +4,15 @@ import type {
   AttendanceQueryParams,
 } from "../types/attendance.types";
 
+interface AttendanceItem {
+  employee_id: string;
+  employee_name: string;
+  department: string;
+  punch_in: string | null;
+  punch_out: string | null;
+  status: string;
+}
+
 export const getAttendance = async (
   params: AttendanceQueryParams
 ): Promise<AttendanceRecord[]> => {
@@ -19,23 +28,31 @@ export const getAttendance = async (
     query.append("search", params.search);
   }
 
-  const res = await apiFetch<any>(
+  const res = await apiFetch<{ data: AttendanceItem[] }>(
     `/attendance/?${query.toString()}`
   );
 
   if (!res || !res.data) return [];
 
-  return res.data.map((item: any) => ({
+  return res.data.map((item: AttendanceItem) => ({
     code: item.employee_id,
     name: item.employee_name,
     department: item.department,
     date: item.punch_in || params.date,
     shift: "General",
     in: item.punch_in
-      ? new Date(item.punch_in).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+      ? new Date(item.punch_in).toLocaleTimeString("en-US", {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: true,
+        })
       : "-",
     out: item.punch_out
-      ? new Date(item.punch_out).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+      ? new Date(item.punch_out).toLocaleTimeString("en-US", {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: true,
+        })
       : "-",
     hours: "-",
     status: item.status,
