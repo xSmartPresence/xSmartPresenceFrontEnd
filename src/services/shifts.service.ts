@@ -106,8 +106,9 @@ export const updateDepartment = async (id: number, payload: UpdateDepartmentPayl
   return mapDepartment(raw);
 };
 
-export const deleteDepartment = async (id: number): Promise<void> => {
+export const deleteDepartment = async (id: number, deleteEmployees: boolean = false): Promise<void> => {
   return apiFetch<void>(`/departments/${id}`, {
     method: "DELETE",
+    body: JSON.stringify({ delete_employees: deleteEmployees }),
   });
 };

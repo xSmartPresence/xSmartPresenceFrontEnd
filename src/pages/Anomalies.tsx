@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { AlertTriangle, Eye, ArrowLeftRight, X, Pencil, Trash2 } from "lucide-react";
 import { getAnomalies, resolveAnomaly, deleteAnomaly, updateAnomaly } from "../services/anomalies.service";
+import AppDialog from "../components/AppDialog";
+import { useDialog } from "../hooks/useDialog";
 import type { Anomaly } from "../types/anomalies.types";
 
 const severityStyle = {
@@ -37,23 +39,42 @@ const Anomalies = () => {
   const [reasonOpen, setReasonOpen]     = useState(false);
   const [viewingImage, setViewingImage] = useState<string | null>(null);
   const [editSubmitting, setEditSubmitting] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const { dialog, confirm, alert, close } = useDialog();
 
-  useEffect(() => {
-    const close = () => {
-      setReasonOpen(false);
-      setSeverityOpen(false);
-    };
-    document.addEventListener("click", close);
-    return () => document.removeEventListener("click", close);
-  }, []);
+useEffect(() => {
+  const closeDropdowns = () => {
+    setReasonOpen(false);
+    setSeverityOpen(false);
+  };
+  document.addEventListener("click", closeDropdowns);
+  return () => document.removeEventListener("click", closeDropdowns);
+}, []);
 
   // ── Fetch anomalies on mount ──────────────────────────────────────────────
   useEffect(() => {
+  let mounted = true;
+
+  const fetchData = () => {
     getAnomalies()
-      .then(setData)
-      .catch(err => console.error("Failed to load anomalies:", err))
-      .finally(() => setLoading(false));
-  }, []);
+      .then(incoming => {
+        if (!mounted) return;
+        setData(incoming);
+        setLastUpdated(new Date());
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
+  };
+
+  fetchData();                               // immediate first load
+  const interval = setInterval(fetchData, 15_000);  // then every 15s
+
+  return () => {
+    mounted = false;
+    clearInterval(interval);
+  };
+}, []);
 
   // ── Mark resolved ─────────────────────────────────────────────────────────
   const markResolved = async (id: number) => {
@@ -63,7 +84,7 @@ const Anomalies = () => {
         prev.map(item => item.id === id ? { ...item, resolved: true } : item)
       );
     } catch (err: unknown) {
-      alert("Failed to resolve anomaly: " + errMsg(err));
+      alert("Error", "Failed to resolve anomaly: " + errMsg(err));
     }
   };
 
@@ -72,7 +93,7 @@ const Anomalies = () => {
     if (!correctingId) return;
 
     if (!correctionReason.trim()) {
-      alert("Please select a correction reason");
+      alert("Validation", "Please select a correction reason");
       return;
     }
 
@@ -86,37 +107,43 @@ const Anomalies = () => {
       setCorrectionReason(correctionReasons[0]);
       setCorrectionNotes("");
     } catch (err: unknown) {
-      alert("Failed to correct anomaly: " + errMsg(err));
+      alert("Error", "Failed to correct anomaly: " + errMsg(err));
     } finally {
       setSubmitting(false);
     }
   };
 
   // ── Delete anomaly ────────────────────────────────────────────────────────
-  const handleDeleteAnomaly = async (id: number) => {
-    if (!window.confirm("Delete this anomaly?")) return;
-    try {
-      await deleteAnomaly(id);
-      setData(prev => prev.filter(item => item.id !== id));
-    } catch (err: unknown) {
-      alert("Failed to delete anomaly: " + errMsg(err));
-    }
-  };
+ const handleDeleteAnomaly = (id: number) => {
+  confirm(
+    "Delete Anomaly",
+    "Are you sure you want to delete this anomaly? This action cannot be undone.",
+    async () => {
+      try {
+        await deleteAnomaly(id);
+        setData(prev => prev.filter(item => item.id !== id));
+      } catch (err: unknown) {
+        alert("Error", "Failed to delete anomaly: " + errMsg(err));
+      }
+    },
+    { type: "danger", confirmLabel: "Delete" }
+  );
+};
 
   // ── Edit anomaly submit ───────────────────────────────────────────────────
   const handleEditSubmit = async () => {
     if (!editingAnomaly) return;
 
     if (!editForm.title.trim()) {
-      alert("Title is required");
+      alert("Validation", "Title is required");
       return;
     }
     if (!editForm.description.trim()) {
-      alert("Description is required");
+      alert("Validation", "Description is required");
       return;
     }
     if (!editForm.employee.trim()) {
-      alert("Employee is required");
+      alert("Validation", "Employee is required");
       return;
     }
 
@@ -133,7 +160,7 @@ const Anomalies = () => {
       );
       setEditingAnomaly(null);
     } catch (err: unknown) {
-      alert("Failed to update anomaly: " + errMsg(err));
+      alert("Error", "Failed to update anomaly: " + errMsg(err));
     } finally {
       setEditSubmitting(false);
     }
@@ -148,10 +175,16 @@ const Anomalies = () => {
 
       {/* HEADER */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800">Anomaly Monitoring</h1>
-          <p className="text-gray-500 text-sm">Detect and resolve attendance anomalies</p>
-        </div>
+       <div>
+  <h1 className="text-2xl font-bold text-gray-800">Anomaly Monitoring</h1>
+  <p className="text-gray-500 text-sm">Detect and resolve attendance anomalies</p>
+  {lastUpdated && (
+    <p className="text-gray-400 text-xs mt-0.5 flex items-center gap-1.5">
+      <span className="inline-block w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+      Live · updated {lastUpdated.toLocaleTimeString()}
+    </p>
+  )}
+</div>
         <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
 
           {/* ADD ANOMALY */}
@@ -225,7 +258,7 @@ const Anomalies = () => {
 
                   {/* VIEW FACE */}
                   <button
-                    onClick={() => item.image ? setViewingImage(item.image) : alert("No image available")}
+                    onClick={() => item.image ? setViewingImage(item.image) : alert("Info", "No image available for this anomaly")}
                     className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border rounded-md transition
                     ${item.image
                       ? "border-gray-300 bg-white hover:bg-gray-50 text-gray-700 cursor-pointer"
@@ -457,7 +490,7 @@ const Anomalies = () => {
               className="w-full rounded-xl object-cover"
               onError={(e) => {
                 (e.target as HTMLImageElement).src = "";
-                alert("Failed to load image");
+                alert("Error", "Failed to load image");
               }}
             />
             <button
@@ -469,6 +502,16 @@ const Anomalies = () => {
           </div>
         </div>
       )}
+
+   <AppDialog
+        open={dialog.open}
+        type={dialog.type}
+        title={dialog.title}
+        message={dialog.message}
+        confirmLabel={dialog.confirmLabel}
+        onConfirm={dialog.onConfirm}
+        onClose={close}
+      />
 
     </div>
   );

@@ -9,6 +9,8 @@ import {
   updateAdminUser,
 } from "../services/settings.service";
 import type { SystemSettings, Holiday, AdminUser, CreateHolidayPayload } from "../types/settings.types";
+import AppDialog from "../components/AppDialog";
+import { useDialog } from "../hooks/useDialog";
 
 const errMsg = (err: unknown) =>
   err instanceof Error ? err.message : String(err);
@@ -50,6 +52,7 @@ const Settings = () => {
   const [adminRoleOpen, setAdminRoleOpen]   = useState(false);
   const [editRoleOpen, setEditRoleOpen]     = useState(false);
   const [editStatusOpen, setEditStatusOpen] = useState(false);
+  const { dialog, confirm, alert, close } = useDialog();
 
   // ── Fetch on mount ────────────────────────────────────────────────────
   useEffect(() => {
@@ -66,31 +69,31 @@ const Settings = () => {
       .catch(err => console.error("Failed to load users:", err));
   }, []);
 
-  useEffect(() => {
-    const close = () => {
-      setHolidayTypeOpen(false);
-      setAdminRoleOpen(false);
-      setEditRoleOpen(false);
-      setEditStatusOpen(false);
-    };
-    document.addEventListener("click", close);
-    return () => document.removeEventListener("click", close);
-  }, []);
+useEffect(() => {
+  const closeDropdowns = () => {
+    setHolidayTypeOpen(false);
+    setAdminRoleOpen(false);
+    setEditRoleOpen(false);
+    setEditStatusOpen(false);
+  };
+  document.addEventListener("click", closeDropdowns);
+  return () => document.removeEventListener("click", closeDropdowns);
+}, []);
 
   // ── Save system settings ──────────────────────────────────────────────
   const handleSaveSettings = async () => {
     if (settings.duplicateWindow < 1) {
-      alert("Duplicate window must be at least 1 second");
-      return;
-    }
-    if (settings.gracePeriod < 0) {
-      alert("Grace period cannot be negative");
-      return;
-    }
-    if (settings.overtimeAfter < 1) {
-      alert("Overtime hours must be at least 1");
-      return;
-    }
+  alert("Validation", "Duplicate window must be at least 1 second");
+  return;
+}
+if (settings.gracePeriod < 0) {
+  alert("Validation", "Grace period cannot be negative");
+  return;
+}
+if (settings.overtimeAfter < 1) {
+  alert("Validation", "Overtime hours must be at least 1");
+  return;
+}
 
     try {
       await updateSystemSettings({
@@ -100,26 +103,26 @@ const Settings = () => {
         working_hours:            settings.overtimeAfter,
         overtime_after_minutes:   settings.overtimeAfter * 60,
       });
-      alert("✅ Settings saved successfully!");
+      alert("Success", "Settings saved successfully!");
     } catch (err: unknown) {
-      alert("Failed to save settings: " + errMsg(err));
+      alert("Error", "Failed to save settings: " + errMsg(err));
     }
   };
 
   // ── Add holiday ───────────────────────────────────────────────────────
   const handleAddHoliday = async () => {
     if (!holidayForm.name.trim()) {
-      alert("Holiday name is required");
-      return;
-    }
-    if (!holidayForm.holiday_date) {
-      alert("Please select a holiday date");
-      return;
-    }
-    if (new Date(holidayForm.holiday_date) < new Date(new Date().toDateString())) {
-      alert("Holiday date cannot be in the past");
-      return;
-    }
+  alert("Validation", "Holiday name is required");
+  return;
+}
+if (!holidayForm.holiday_date) {
+  alert("Validation", "Please select a holiday date");
+  return;
+}
+if (new Date(holidayForm.holiday_date) < new Date(new Date().toDateString())) {
+  alert("Validation", "Holiday date cannot be in the past");
+  return;
+}
 
     setSavingHoliday(true);
     try {
@@ -128,41 +131,47 @@ const Settings = () => {
       setHolidayModal(false);
       setHolidayForm({ name: "", holiday_date: "", type: "Public" });
     } catch (err: unknown) {
-      alert("Failed to add holiday: " + errMsg(err));
+      alert("Error", "Failed to add holiday: " + errMsg(err));
     } finally {
       setSavingHoliday(false);
     }
   };
 
   // ── Delete holiday ────────────────────────────────────────────────────
-  const handleDeleteHoliday = async (id: number) => {
-    if (!window.confirm("Delete this holiday?")) return;
-    try {
-      await deleteHoliday(id);
-      setHolidays(prev => prev.filter(h => h.id !== id));
-    } catch (err: unknown) {
-      alert("Failed to delete holiday: " + errMsg(err));
-    }
-  };
+ const handleDeleteHoliday = (id: number) => {
+  confirm(
+    "Delete Holiday",
+    "Are you sure you want to delete this holiday? This action cannot be undone.",
+    async () => {
+      try {
+        await deleteHoliday(id);
+        setHolidays(prev => prev.filter(h => h.id !== id));
+      } catch (err: unknown) {
+        alert("Error", "Failed to delete holiday: " + errMsg(err));
+      }
+    },
+    { type: "danger", confirmLabel: "Delete" }
+  );
+};
 
   // ── Create admin ──────────────────────────────────────────────────────
   const handleCreateAdmin = async () => {
     if (!adminForm.name || !adminForm.email || !adminForm.password) {
-      alert("Please fill all fields");
-      return;
-    }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(adminForm.email)) {
-      alert("Please enter a valid email address");
-      return;
-    }
-    if (adminForm.password.length < 6) {
-      alert("Password must be at least 6 characters");
-      return;
-    }
-    if (adminForm.name.trim().length < 3) {
-      alert("Name must be at least 3 characters");
-      return;
-    }
+  alert("Validation", "Please fill all fields");
+  return;
+}
+if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(adminForm.email)) {
+  alert("Validation", "Please enter a valid email address");
+  return;
+}
+if (adminForm.password.length < 6) {
+  alert("Validation", "Password must be at least 6 characters");
+  return;
+}
+if (adminForm.name.trim().length < 3) {
+  alert("Validation", "Name must be at least 3 characters");
+  return;
+}
 
     setCreatingAdmin(true);
     try {
@@ -172,39 +181,45 @@ const Settings = () => {
       setAdminModal(false);
       setAdminForm({ name: "", email: "", role: "admin", password: "" });
     } catch (err: unknown) {
-      alert("Failed to create admin: " + errMsg(err));
+      alert("Error", "Failed to create admin: " + errMsg(err));
     } finally {
       setCreatingAdmin(false);
     }
   };
 
   // ── Delete user ───────────────────────────────────────────────────────
-  const handleDeleteUser = async (id: number) => {
-    if (!window.confirm("Delete this user?")) return;
-    try {
-      await deleteAdminUser(id);
-      setUsers(prev => prev.filter(u => u.id !== id));
-    } catch (err: unknown) {
-      alert("Failed to delete user: " + errMsg(err));
-    }
-  };
+  const handleDeleteUser = (id: number) => {
+  confirm(
+    "Delete User",
+    "Are you sure you want to delete this user? This action cannot be undone.",
+    async () => {
+      try {
+        await deleteAdminUser(id);
+        setUsers(prev => prev.filter(u => u.id !== id));
+      } catch (err: unknown) {
+        alert("Error", "Failed to delete user: " + errMsg(err));
+      }
+    },
+    { type: "danger", confirmLabel: "Delete" }
+  );
+};
 
   // ── Update user ───────────────────────────────────────────────────────
   const handleUpdateUser = async () => {
     if (!editingUser || updatingUser) return;
 
     if (!editForm.name.trim()) {
-      alert("Name is required");
-      return;
-    }
-    if (!editForm.email.trim()) {
-      alert("Email is required");
-      return;
-    }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editForm.email)) {
-      alert("Please enter a valid email address");
-      return;
-    }
+  alert("Validation", "Name is required");
+  return;
+}
+if (!editForm.email.trim()) {
+  alert("Validation", "Email is required");
+  return;
+}
+if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editForm.email)) {
+  alert("Validation", "Please enter a valid email address");
+  return;
+}
 
     setUpdatingUser(true);
     try {
@@ -219,7 +234,7 @@ const Settings = () => {
       setEditModal(false);
       setEditingUser(null);
     } catch (err: unknown) {
-      alert("Failed to update user: " + errMsg(err));
+      alert("Error", "Failed to update user: " + errMsg(err));
     } finally {
       setUpdatingUser(false);
     }
@@ -677,6 +692,16 @@ const Settings = () => {
           </div>
         </div>
       )}
+
+   <AppDialog
+        open={dialog.open}
+        type={dialog.type}
+        title={dialog.title}
+        message={dialog.message}
+        confirmLabel={dialog.confirmLabel}
+        onConfirm={dialog.onConfirm}
+        onClose={close}
+      />
 
     </div>
   );

@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 
 import { useEffect, useState, useRef } from "react";
-import { getDashboardData } from "../services/dashboard.service";
+import { getDashboardData, getSystemHealth } from "../services/dashboard.service";
 import type { DashboardData } from "../types/dashboard.types";
 
 const WS_URL = import.meta.env.VITE_WS_URL as string;
@@ -49,11 +49,13 @@ function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [isMobile, setIsMobile] = useState(false);
-  const [wsConnected, setWsConnected] = useState(false);
+  const [wsStatus, setWsStatus] = useState<"connecting" | "connected" | "offline">("connecting");
   const [liveSummary, setLiveSummary] = useState<LiveSummary | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const retryCountRef = useRef<number>(0);
+  const MAX_RETRIES = 5;
 
   // ── Resize listener ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -64,71 +66,129 @@ function Dashboard() {
   }, []);
 
   // ── Initial API fetch ─────────────────────────────────────────────────────
-  // `mounted` state was previously used to gate chart rendering, but React 18
-  // renders charts fine without it. Removing it eliminates the
-  // react/no-direct-mutation-state (setState directly in useEffect) lint error.
-  useEffect(() => {
-    getDashboardData()
-      .then((res) => {
+useEffect(() => {
+  const controller = new AbortController();
+
+  getDashboardData(controller.signal)
+    .then((res) => {
+      if (!controller.signal.aborted) {
         setData(res);
         setLoading(false);
-      })
-      .catch((err) => {
-        console.error("Dashboard API Error:", err);
-        setError("Failed to load dashboard data");
-        setLoading(false);
-      });
-  }, []);
+      }
+    })
+    .catch((err) => {
+      if (err.name === "AbortError") return; // ignore cleanup aborts — not a real error
+      console.error("Dashboard API Error:", err);
+      setError("Failed to load dashboard data");
+      setLoading(false);
+    });
+
+  return () => controller.abort(); // cancel fetch if component unmounts
+}, []);
 
   // ── WebSocket connection with auto-reconnect ──────────────────────────────
   useEffect(() => {
-    const connect = () => {
-      try {
-        const token = localStorage.getItem("token");
-        const ws = new WebSocket(`${WS_URL}?token=${token}`);
-        wsRef.current = ws;
+  let mounted = true;
+  retryCountRef.current = 0; // reset on every fresh mount
 
-        ws.onopen = () => {
-          setWsConnected(true);
-          if (reconnectRef.current) clearTimeout(reconnectRef.current);
-        };
+  const connect = () => {
+    if (!mounted) return; // stop if unmounted
+    if (retryCountRef.current >= MAX_RETRIES) {
+      setWsStatus("offline");
+      return;
+    }
 
-        ws.onmessage = (event) => {
-          try {
-            const msg = JSON.parse(event.data) as Record<string, unknown>;
-            setLiveSummary({
-              total:     (msg.total      ?? msg.total_employees  ?? 0) as number,
-              present:   (msg.present    ?? msg.present_today    ?? 0) as number,
-              absent:    (msg.absent     ?? msg.absent_today     ?? 0) as number,
-              late:      (msg.late       ?? msg.late_arrivals    ?? 0) as number,
-              earlyExit: (msg.earlyExit  ?? msg.early_exits      ?? 0) as number,
-              overtime:  (msg.overtime   ?? msg.overtime_count   ?? 0) as number,
-              occupancy: (msg.occupancy  ?? msg.office_occupancy ?? 0) as number,
-            });
-          } catch (e) {
-            console.error("WS parse error:", e);
-          }
-        };
+    const token = localStorage.getItem("token");
+    if (!token) {
+      setWsStatus("offline");
+      return;
+    }
 
-        ws.onerror = () => setWsConnected(false);
+    try {
+      const ws = new WebSocket(`${WS_URL}?token=${token}`);
+      wsRef.current = ws;
 
-        ws.onclose = () => {
-          setWsConnected(false);
-          reconnectRef.current = setTimeout(connect, 5000);
-        };
-      } catch (e) {
-        console.error("WebSocket init error:", e);
-        reconnectRef.current = setTimeout(connect, 5000);
+      ws.onopen = () => {
+        retryCountRef.current = 0;
+        setWsStatus("connected");
+        if (reconnectRef.current) clearTimeout(reconnectRef.current);
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data) as Record<string, unknown>;
+          setLiveSummary({
+            total:     (msg.total      ?? msg.total_employees  ?? 0) as number,
+            present:   (msg.present    ?? msg.present_today    ?? 0) as number,
+            absent:    (msg.absent     ?? msg.absent_today     ?? 0) as number,
+            late:      (msg.late       ?? msg.late_arrivals    ?? 0) as number,
+            earlyExit: (msg.earlyExit  ?? msg.early_exits      ?? 0) as number,
+            overtime:  (msg.overtime   ?? msg.overtime_count   ?? 0) as number,
+            occupancy: (msg.occupancy  ?? msg.office_occupancy ?? 0) as number,
+          });
+        } catch (e) {
+          console.error("WS parse error:", e);
+        }
+      };
+
+      ws.onerror = () => {};
+
+      ws.onclose = () => {
+        if (!mounted) return; // don't retry if unmounted
+        retryCountRef.current += 1;
+
+        if (retryCountRef.current >= MAX_RETRIES) {
+          setWsStatus("offline");
+          return;
+        }
+
+        const delay = Math.min(2000 * Math.pow(2, retryCountRef.current - 1), 30000);
+        reconnectRef.current = setTimeout(connect, delay);
+      };
+
+    } catch (e) {
+      if (!mounted) return;
+      retryCountRef.current += 1;
+      if (retryCountRef.current < MAX_RETRIES) {
+        const delay = Math.min(2000 * Math.pow(2, retryCountRef.current - 1), 30000);
+        reconnectRef.current = setTimeout(connect, delay);
+      } else {
+        setWsStatus("offline");
       }
-    };
+    }
+  };
 
-    connect();
+  connect();
 
-    return () => {
-      if (reconnectRef.current) clearTimeout(reconnectRef.current);
-      wsRef.current?.close();
-    };
-  }, []);
+  return () => {
+    mounted = false; // mark unmounted
+    if (reconnectRef.current) clearTimeout(reconnectRef.current);
+    wsRef.current?.close();
+    wsRef.current = null;
+  };
+}, []);
+
+useEffect(() => {
+  let mounted = true;
+
+  const fetchHealth = async () => {
+    try {
+      const health = await getSystemHealth();
+      if (!mounted) return;
+      setData(prev => prev ? { ...prev, systemHealth: health } : prev);
+    } catch (err) {
+      console.warn("Health poll failed:", err);
+    }
+  };
+
+  fetchHealth();
+  const interval = setInterval(fetchHealth, 15_000);
+
+  return () => {
+    mounted = false;
+    clearInterval(interval);
+  };
+}, []);
 
   // ── Loading / Error states ────────────────────────────────────────────────
   if (loading) return <div className="text-gray-500">Loading dashboard...</div>;
@@ -207,12 +267,18 @@ function Dashboard() {
       {/* HEADER */}
       <div className="flex items-center justify-between mb-1">
         <h1 className="text-2xl font-bold text-gray-800">Dashboard</h1>
-        <div className={`flex items-center gap-1.5 text-xs px-3 py-1 rounded-full ${
-          wsConnected ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
-        }`}>
-          {wsConnected ? <Wifi size={12} /> : <WifiOff size={12} />}
-          {wsConnected ? "Live" : "Static"}
-        </div>
+       <div className={`flex items-center gap-1.5 text-xs px-3 py-1 rounded-full ${
+          wsStatus === "connected" ? "bg-green-100 text-green-700"
+          : wsStatus === "offline"  ? "bg-red-100 text-red-500"
+          : "bg-yellow-100 text-yellow-600"
+       }`}>
+          {wsStatus === "connected" ? <Wifi size={12} />
+          : wsStatus === "offline"  ? <WifiOff size={12} />
+          : <Wifi size={12} />} 
+          {wsStatus === "connected" ? "Live"
+          : wsStatus === "offline"  ? "Backend Offline"
+          : "Connecting…"}
+       </div>
       </div>
       <p className="text-gray-500 text-sm mb-2">Real-time attendance overview</p>
 
@@ -334,7 +400,7 @@ function Dashboard() {
 
         {/* BAR */}
         <div className="bg-white rounded-xl shadow-sm w-full lg:col-span-6 px-4 pt-4 pb-2">
-          <h3 className="text-sm font-semibold mb-1">Department-wise Attendance</h3>
+          <h3 className="text-sm font-semibold mb-6">Department-wise Attendance</h3>
           <ResponsiveContainer width="100%" height={barHeight}>
             <BarChart
               data={deptData}

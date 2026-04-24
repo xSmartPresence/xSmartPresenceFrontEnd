@@ -5,6 +5,9 @@ import {
   getDepartments, createDepartment, updateDepartment, deleteDepartment,
 } from "../services/shifts.service";
 import type { Shift, Department, CreateShiftPayload, CreateDepartmentPayload } from "../types/shifts.types";
+import AppDialog from "../components/AppDialog";
+import { useDialog } from "../hooks/useDialog";
+
 
 const Shifts = () => {
   const [activeTab, setActiveTab] = useState("shifts");
@@ -19,6 +22,8 @@ const Shifts = () => {
 
   const [editingShift, setEditingShift]           = useState<Shift | null>(null);
   const [editingDepartment, setEditingDepartment] = useState<Department | null>(null);
+  const [deleteConfirmDept, setDeleteConfirmDept] = useState<Department | null>(null);
+  const { dialog, confirm, alert, close } = useDialog();
 
   const [shiftForm, setShiftForm] = useState<CreateShiftPayload>({
     shift_name: "", start_time: "", end_time: "", grace_minutes: 0, overtime_minutes: 0,
@@ -76,17 +81,17 @@ const Shifts = () => {
     // ✅ Shift validations
     if (activeTab === "shifts") {
       if (!shiftForm.shift_name.trim()) {
-        alert("Shift name is required");
-        return;
-      }
-      if (!shiftForm.start_time) {
-        alert("Start time is required");
-        return;
-      }
-      if (!shiftForm.end_time) {
-        alert("End time is required");
-        return;
-      }
+  alert("Validation", "Shift name is required");
+  return;
+}
+if (!shiftForm.start_time) {
+  alert("Validation", "Start time is required");
+  return;
+}
+if (!shiftForm.end_time) {
+  alert("Validation", "End time is required");
+  return;
+}
       const start = new Date(`1970-01-01T${shiftForm.start_time}`);
       const end   = new Date(`1970-01-01T${shiftForm.end_time}`);
 
@@ -98,29 +103,29 @@ const Shifts = () => {
 
       // Prevent same time
       if (start.getTime() === effectiveEnd.getTime()) {
-        alert("Start and end time cannot be same");
-        return;
-      }
-      if (shiftForm.grace_minutes < 0) {
-        alert("Grace minutes cannot be negative");
-        return;
-      }
-      if ((shiftForm.overtime_minutes ?? 0) < 0) {
-        alert("Overtime minutes cannot be negative");
-        return;
-      }
+  alert("Validation", "Start and end time cannot be same");
+  return;
+}
+if (shiftForm.grace_minutes < 0) {
+  alert("Validation", "Grace minutes cannot be negative");
+  return;
+}
+if ((shiftForm.overtime_minutes ?? 0) < 0) {
+  alert("Validation", "Overtime minutes cannot be negative");
+  return;
+}
     }
 
     // ✅ Department validations
     if (activeTab === "departments") {
       if (!deptForm.name.trim()) {
-        alert("Department name is required");
-        return;
-      }
-      if (deptForm.employee_count < 0) {
-        alert("Employee count cannot be negative");
-        return;
-      }
+  alert("Validation", "Department name is required");
+  return;
+}
+if (deptForm.employee_count < 0) {
+  alert("Validation", "Employee count cannot be negative");
+  return;
+}
     }
 
     setSaving(true);
@@ -135,7 +140,7 @@ const Shifts = () => {
             s => s.name.toLowerCase() === shiftForm.shift_name.toLowerCase()
           );
           if (duplicate) {
-            alert(`⚠️ Shift "${shiftForm.shift_name}" already exists.`);
+            alert("Duplicate", `Shift "${shiftForm.shift_name}" already exists.`);
             return;
           }
           const created = await createShift(shiftForm);
@@ -150,7 +155,7 @@ const Shifts = () => {
             d => d.name.toLowerCase() === deptForm.name.toLowerCase()
           );
           if (duplicate) {
-            alert(`⚠️ Department "${deptForm.name}" already exists.`);
+            alert("Duplicate", `Department "${deptForm.name}" already exists.`);
             return;
           }
           const created = await createDepartment(deptForm);
@@ -159,30 +164,47 @@ const Shifts = () => {
       }
       setOpenModal(false);
     } catch (err: unknown) {
-      alert("Failed to save: " + (err instanceof Error ? err.message : String(err)));
+      alert("Error", "Failed to save: " + (err instanceof Error ? err.message : String(err)));
     } finally {
       setSaving(false);
     }
   };
 
   // ── Delete ────────────────────────────────────────────────────────────────
-  const handleDeleteShift = async (id: number) => {
-    if (!window.confirm("Are you sure you want to delete this shift?")) return;
-    try {
-      await deleteShift(id);
-      setShifts(prev => prev.filter(s => s.id !== id));
-    } catch (err: unknown) {
-      alert("Failed to delete shift: " + (err instanceof Error ? err.message : String(err)));
+const handleDeleteShift = (id: number) => {
+  confirm(
+    "Delete Shift",
+    "Are you sure you want to delete this shift? This action cannot be undone.",
+    async () => {
+      try {
+        await deleteShift(id);
+        setShifts(prev => prev.filter(s => s.id !== id));
+      } catch (err: unknown) {
+        alert("Error", "Failed to delete shift: " + (err instanceof Error ? err.message : String(err)));
+      }
+    },
+    { type: "danger", confirmLabel: "Delete" }
+  );
+};
+
+  const handleDeleteDepartment = (id: number) => {
+    const dept = departments.find(d => d.id === id);
+    if (!dept) return;
+
+    if (dept.employeeCount > 0) {
+      setDeleteConfirmDept(dept);
+    } else {
+      confirmDeleteDepartment(id, false);
     }
   };
 
-  const handleDeleteDepartment = async (id: number) => {
-    if (!window.confirm("Are you sure you want to delete this department?")) return;
+  const confirmDeleteDepartment = async (id: number, deleteEmployees: boolean) => {
+    setDeleteConfirmDept(null);
     try {
-      await deleteDepartment(id);
+      await deleteDepartment(id, deleteEmployees);
       setDepartments(prev => prev.filter(d => d.id !== id));
     } catch (err: unknown) {
-      alert("Failed to delete department: " + (err instanceof Error ? err.message : String(err)));
+      alert("Error", "Failed to delete department: " + (err instanceof Error ? err.message : String(err)));
     }
   };
 
@@ -425,6 +447,59 @@ const Shifts = () => {
           </div>
         </div>
       )}
+       {deleteConfirmDept && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
+          <div className="bg-white w-full max-w-md rounded-xl shadow-xl p-6 relative">
+            <button
+              onClick={() => setDeleteConfirmDept(null)}
+              className="absolute top-4 right-4 text-gray-500 hover:text-black"
+            >
+              <X size={20} />
+            </button>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="bg-red-100 p-2 rounded-full">
+                <Trash2 size={20} className="text-red-600" />
+              </div>
+              <h2 className="text-lg font-semibold text-gray-900">Delete Department</h2>
+            </div>
+            <p className="text-sm text-gray-600 mt-3">
+              <span className="font-medium text-gray-900">"{deleteConfirmDept.name}"</span> currently has{" "}
+              <span className="font-medium text-red-600">
+                {deleteConfirmDept.employeeCount} employee(s)
+              </span>{" "}
+              assigned to it.
+            </p>
+            <p className="text-sm text-gray-500 mt-2">
+              To delete this department, you must first remove its employees.
+              This action <span className="font-medium text-gray-700">cannot be undone</span>.
+            </p>
+            <div className="flex flex-col sm:flex-row justify-end gap-3 mt-6">
+              <button
+                onClick={() => setDeleteConfirmDept(null)}
+                className="px-4 py-2 border border-gray-200 rounded-lg text-sm hover:bg-gray-50 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => confirmDeleteDepartment(deleteConfirmDept.id, true)}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 transition"
+              >
+                Delete Employees & Department
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+   <AppDialog
+        open={dialog.open}
+        type={dialog.type}
+        title={dialog.title}
+        message={dialog.message}
+        confirmLabel={dialog.confirmLabel}
+        onConfirm={dialog.onConfirm}
+        onClose={close}
+      />
 
     </div>
   );

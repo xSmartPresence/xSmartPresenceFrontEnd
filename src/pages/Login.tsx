@@ -1,6 +1,7 @@
-import { useState , useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE } from "../config/api";
+import { Eye, EyeOff } from "lucide-react";
 
 function Login() {
   const navigate = useNavigate();
@@ -9,6 +10,7 @@ function Login() {
   const [password, setPassword] = useState<string>("");
   const [error, setError] = useState<string>("");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
      const token = localStorage.getItem("token");
@@ -45,9 +47,9 @@ function Login() {
     "Content-Type": "application/json",
   },
   body: JSON.stringify({
-    email,
-    password,
-  }),
+  email: email.trim().toLowerCase(),
+  password: password.trim(),
+}),
 });
 
     const data = await response.json();
@@ -59,12 +61,16 @@ function Login() {
       return;
     }
 
-    // Save real JWT token
-    localStorage.setItem("token", data.token || data.access_token);
-    if (data.role) localStorage.setItem("role", data.role);
+ localStorage.setItem("token", data.token || data.access_token);
+ if (data.role) localStorage.setItem("role", data.role);
+ if (data.name) localStorage.setItem("name", data.name);
 
-    setError("");
-    navigate("/dashboard");
+ // Save email from input directly — don't rely on API returning it
+ localStorage.setItem("email", data.email || email.trim().toLowerCase());
+ if (data.org) localStorage.setItem("org", data.org);
+
+setError("");
+navigate("/dashboard");
 
   } catch {
   setError("Server connection error");
@@ -117,7 +123,7 @@ function Login() {
             type="email"
             placeholder="Enter your email"
             value={email}
-            onChange={(e) => { setEmail(e.target.value); setError(""); }}
+            onChange={(e) => { setEmail(e.target.value.trim()); setError(""); }}
             onKeyDown={(e) => e.key === "Enter" && handleLogin()}
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
               focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -125,20 +131,30 @@ function Login() {
         </div>
 
         {/* PASSWORD */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-600 mb-1">
-            Password
-          </label>
-          <input
-            type="password"
-            placeholder="Enter your password"
-            value={password}
-            onChange={(e) => { setPassword(e.target.value); setError(""); }}
-            onKeyDown={(e) => e.key === "Enter" && handleLogin()}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
-              focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
+        {/* PASSWORD */}
+<div className="mb-4">
+  <label className="block text-sm font-medium text-gray-600 mb-1">
+    Password
+  </label>
+  <div className="relative">
+    <input
+      type={showPassword ? "text" : "password"}
+      placeholder="Enter your password"
+      value={password}
+      onChange={(e) => { setPassword(e.target.value.trim()); setError(""); }}
+      onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
+        focus:outline-none focus:ring-2 focus:ring-blue-500 pr-10"
+    />
+    <button
+      type="button"
+      onClick={() => setShowPassword(!showPassword)}
+      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+    >
+      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+    </button>
+  </div>
+</div>
 
         {/* ERROR MESSAGE */}
         {error && (

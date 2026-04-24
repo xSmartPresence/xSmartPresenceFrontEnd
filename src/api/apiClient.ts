@@ -7,13 +7,14 @@ export async function apiFetch<T>(
   const token = localStorage.getItem("token");
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10000);
+  const timeout = setTimeout(() => controller.abort(), 60000);
 
   const res = await fetch(`${API_BASE}${endpoint}`, {
     signal: controller.signal,
     ...options,
     headers: {
       "Content-Type": "application/json",
+      "x-api-key": "mysecret123",  
       ...(token && { Authorization: `Bearer ${token}` }),
       ...(options.headers || {}),
     },

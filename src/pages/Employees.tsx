@@ -5,6 +5,8 @@ import { useState, useRef, useEffect } from "react";
 import * as tf from "@tensorflow/tfjs";
 import * as faceLandmarksDetection from "@tensorflow-models/face-landmarks-detection";
 import { getEmployees, createEmployee, updateEmployee, deleteEmployee, enrollEmployee } from "../services/employees.service";
+import AppDialog from "../components/AppDialog";
+import { useDialog } from "../hooks/useDialog";
 import type { Employee, CreateEmployeePayload } from "../types/employees.types";
 import { apiFetch } from "../api/apiClient";
 
@@ -22,11 +24,13 @@ const errMsg = (err: unknown) =>
 // Defined outside the component so it's stable — no re-creation on each
 // render and no exhaustive-deps warning from the detection loop effect.
 const ANGLES = [
-  { label: "Look Straight (Front)",  check: "straight"       },
-  { label: "Turn Slightly Left",     check: "slightly-left"  },
-  { label: "Turn Left",              check: "left"           },
-  { label: "Turn Slightly Right",    check: "slightly-right" },
-  { label: "Turn Right",             check: "right"          },
+  { label: "Look Straight at Camera",          check: "straight"       },
+  { label: "Turn Slightly Left",               check: "slightly-left"  },
+  { label: "Turn Full Left",                   check: "left"           },
+  { label: "Turn Slightly Right",              check: "slightly-right" },
+  { label: "Turn Full Right",                  check: "right"          },
+  { label: "Look Down (chin toward chest)",    check: "down"           },
+  { label: "Look Up (chin raised, eyes up)",   check: "up"             },
 ];
 
 const Employees = () => {
@@ -71,6 +75,7 @@ const Employees = () => {
   const [deptOpen,  setDeptOpen]  = useState(false);
   const [shiftOpen, setShiftOpen] = useState(false);
   const [saving,    setSaving]    = useState(false);
+  const { dialog, confirm, alert, close } = useDialog();
 
   // ── Fetch employees, departments, shifts on mount ────────────────────────
   useEffect(() => {
@@ -101,9 +106,9 @@ const Employees = () => {
   }, []);
 
   useEffect(() => {
-    const close = () => { setDeptOpen(false); setShiftOpen(false); };
-    document.addEventListener("click", close);
-    return () => document.removeEventListener("click", close);
+    const closeDropdowns = () => { setDeptOpen(false); setShiftOpen(false); };
+    document.addEventListener("click", closeDropdowns);
+    return () => document.removeEventListener("click", closeDropdowns);
   }, []);
 
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -113,21 +118,41 @@ const Employees = () => {
   };
 
   const detectPose = (keypoints: { x: number; y: number }[]): string | null => {
-    const nose     = keypoints[1];
-    const leftEye  = keypoints[33];
-    const rightEye = keypoints[263];
-    if (!nose || !leftEye || !rightEye) return null;
-    const faceWidth  = Math.abs(rightEye.x - leftEye.x);
-    const faceCenter = (leftEye.x + rightEye.x) / 2;
-    const offset     = (faceCenter - nose.x) / faceWidth;
-    if (offset > 0.25)  return "right";
-    if (offset > 0.10)  return "slightly-right";
-    if (offset < -0.25) return "left";
-    if (offset < -0.10) return "slightly-left";
-    return "straight";
-  };
+  const nose      = keypoints[1];
+  const leftEye   = keypoints[33];
+  const rightEye  = keypoints[263];
+  const chin      = keypoints[152];  // bottom of chin
+  const forehead  = keypoints[10];   // top of forehead
 
-  const stopCamera = () => {
+  if (!nose || !leftEye || !rightEye || !chin || !forehead) return null;
+
+  const faceWidth  = Math.abs(rightEye.x - leftEye.x);
+  const faceHeight = Math.abs(chin.y - forehead.y);
+
+  // ── Horizontal (left/right turn) ──────────────────────────────────────
+  const faceCenter = (leftEye.x + rightEye.x) / 2;
+  const hOffset    = (faceCenter - nose.x) / faceWidth;
+
+  if (hOffset > 0.30)  return "right";
+  if (hOffset > 0.15)  return "slightly-right";
+  if (hOffset < -0.30) return "left";
+  if (hOffset < -0.15) return "slightly-left";
+
+  // ── Vertical (up/down tilt) ───────────────────────────────────────────
+  // Use nose position relative to chin+forehead midpoint
+  // When looking down: nose moves closer to chin → ratio increases
+  // When looking up:   nose moves closer to forehead → ratio decreases
+  const faceMidY   = (chin.y + forehead.y) / 2;
+  const vOffset    = (nose.y - faceMidY) / faceHeight;
+
+  // vOffset > 0 means nose is below face center (looking down)
+  // vOffset < 0 means nose is above face center (looking up)
+  if (vOffset > 0.08)  return "down";   // clear chin-drop
+  if (vOffset < -0.08) return "up";     // clear chin-raise
+
+  return "straight";
+};
+   const stopCamera = () => {
     cancelAnimationFrame(rafRef.current);
     if (videoRef.current?.srcObject) {
       (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
@@ -167,7 +192,7 @@ const Employees = () => {
       })
       .catch(() => {
         if (!cancelled) {
-          alert("Camera access denied. Please allow camera permission and try again.");
+          alert("Camera Access Denied", "Please allow camera permission and try again.");
           setOpenCamera(false);
         }
       });
@@ -260,39 +285,43 @@ const Employees = () => {
   // ── Enroll after 5 captures ──────────────────────────────────────────────
   useEffect(() => {
     const processEnrollment = async () => {
-      if (capturedImages.length !== 5) return;
+      if (capturedImages.length !== 7) return;
 
       const employeeAtCaptureTime = enrollingEmployeeRef.current;
 
       // Add flow — no employee yet, just store photos and return to modal
       if (!employeeAtCaptureTime) {
-        alert("✅ 5 photos captured! Click Save to create employee and register face.");
+        alert("Photos Captured", "7 photos captured! Click Save to create employee and register face.");
         setOpenCamera(false);
         setOpenModal(true);
         return;
       }
 
       // Edit flow — employee already exists, enroll immediately
-      try {
-        await enrollEmployee(employeeAtCaptureTime.code, capturedImages);
-        setEmployees(prev =>
-          prev.map(emp =>
-            emp.id === employeeAtCaptureTime.id ? { ...emp, faceRegistered: true } : emp
-          )
-        );
-        alert("✅ Face registered successfully!");
-        setOpenCamera(false);
-        setCapturedImages([]);
+try {
+  await enrollEmployee(employeeAtCaptureTime.code, capturedImages);
+  setEmployees(prev =>
+    prev.map(emp =>
+      emp.id === employeeAtCaptureTime.id ? { ...emp, faceRegistered: true } : emp
+    )
+  );
+  alert("Success", "Face registered successfully!");
+  setOpenCamera(false);
+  setCapturedImages([]);
+  enrollingEmployeeRef.current = null;
+  // Reset form so next Add Employee opens blank
+  setEditingEmployee(null);
+  setFormData({ code: "", name: "", department_id: 0, shift_id: 0, faceRegistered: false });
       } catch (error: unknown) {
         const msg = errMsg(error);
-        if (msg.toLowerCase().includes("expected 5 photos"))
-          alert("⚠️ Photo count error: " + msg);
-        else if (msg.toLowerCase().includes("no face detected"))
-          alert("😶 No face detected. Please retake — ensure your face is clearly visible.");
-        else if (msg.toLowerCase().includes("multiple faces"))
-          alert("👥 Multiple faces detected. Please ensure only one person is in frame.");
-        else
-          alert("Enrollment failed: " + msg);
+        if (msg.toLowerCase().includes("expected 7 photos"))
+  alert("Photo Error", "Photo count error: " + msg);
+else if (msg.toLowerCase().includes("no face detected"))
+  alert("No Face Detected", "Please retake — ensure your face is clearly visible.");
+else if (msg.toLowerCase().includes("multiple faces"))
+  alert("Multiple Faces", "Please ensure only one person is in frame.");
+else
+  alert("Enrollment Failed", msg);
         setCapturedImages([]);
       }
     };
@@ -302,38 +331,37 @@ const Employees = () => {
 
   // ── CRUD ──────────────────────────────────────────────────────────────────
   const handleSave = async () => {
-    if (!formData.code.trim()) {
-      alert("Employee code is required");
-      return;
-    }
-    if (!/^[A-Za-z0-9]+$/.test(formData.code.trim())) {
-      alert("Employee code can only contain letters and numbers");
-      return;
-    }
-    if (!formData.name.trim()) {
-      alert("Employee name is required");
-      return;
-    }
-    if (formData.name.trim().length < 3) {
-      alert("Employee name must be at least 3 characters");
-      return;
-    }
-    if (!formData.department_id) {
-      alert("Please select a department");
-      return;
-    }
-    if (!formData.shift_id) {
-      alert("Please select a shift");
-      return;
-    }
+   if (!formData.code.trim()) {
+  alert("Validation", "Employee code is required");
+  return;
+}
+if (!/^[A-Za-z0-9]+$/.test(formData.code.trim())) {
+  alert("Validation", "Employee code can only contain letters and numbers");
+  return;
+}
+if (!formData.name.trim()) {
+  alert("Validation", "Employee name is required");
+  return;
+}
+if (formData.name.trim().length < 3) {
+  alert("Validation", "Employee name must be at least 3 characters");
+  return;
+}
+if (!formData.department_id) {
+  alert("Validation", "Please select a department");
+  return;
+}
+if (!formData.shift_id) {
+  alert("Validation", "Please select a shift");
+  return;
+}
 
-    const confirmed = window.confirm(
-      editingEmployee
-        ? `Are you sure you want to update ${formData.name}?`
-        : `Are you sure you want to add ${formData.name}?`
-    );
-    if (!confirmed) return;
-
+    confirm(
+  editingEmployee ? "Update Employee" : "Add Employee",
+  editingEmployee
+    ? `Are you sure you want to update ${formData.name}?`
+    : `Are you sure you want to add ${formData.name}?`,
+  async () => {
     setSaving(true);
     try {
       const payload: CreateEmployeePayload = {
@@ -351,12 +379,12 @@ const Employees = () => {
       } else {
         try {
           await createEmployee(payload);
-          if (capturedImages.length === 5) {
+          if (capturedImages.length === 7) {
             try {
               await enrollEmployee(formData.code, capturedImages);
-              alert("✅ Face registered successfully!");
+              alert("Success", "Face registered successfully!");
             } catch (enrollError: unknown) {
-              alert("Employee created but face enrollment failed: " + errMsg(enrollError));
+              alert("Warning", "Employee created but face enrollment failed: " + errMsg(enrollError));
             }
           }
           const fresh = await getEmployees();
@@ -365,10 +393,10 @@ const Employees = () => {
         } catch (err: unknown) {
           const msg = errMsg(err);
           if (msg.includes("400") || msg.includes("409")) {
-            alert(`⚠️ Employee with code "${formData.code}" already exists. Please use a different code.`);
-          } else {
-            alert("Failed to create employee: " + msg);
-          }
+  alert("Duplicate Code", `Employee with code "${formData.code}" already exists. Please use a different code.`);
+} else {
+  alert("Error", "Failed to create employee: " + msg);
+}
           return;
         }
       }
@@ -377,25 +405,29 @@ const Employees = () => {
       setEditingEmployee(null);
       setFormData({ code: "", name: "", department_id: 0, shift_id: 0, faceRegistered: false });
     } catch (err: unknown) {
-      alert("Failed to save employee: " + errMsg(err));
+      alert("Error", "Failed to save employee: " + errMsg(err));
     } finally {
       setSaving(false);
     }
-  };
+  }
+);
+};
 
-  const handleDelete = async (code: string) => {
-    const confirmed = window.confirm(
-      `Are you sure you want to delete employee ${code}? This action cannot be undone.`
-    );
-    if (!confirmed) return;
-
-    try {
-      await deleteEmployee(code);
-      setEmployees(prev => prev.filter(emp => emp.code !== code));
-    } catch (err: unknown) {
-      alert("Failed to delete employee: " + errMsg(err));
-    }
-  };
+const handleDelete = (code: string) => {
+  confirm(
+    "Delete Employee",
+    `Are you sure you want to delete employee ${code}? This action cannot be undone.`,
+    async () => {
+      try {
+        await deleteEmployee(code);
+        setEmployees(prev => prev.filter(emp => emp.code !== code));
+      } catch (err: unknown) {
+        alert("Error", "Failed to delete employee: " + errMsg(err));
+      }
+    },
+    { type: "danger", confirmLabel: "Delete" }
+  );
+};
 
   const filteredEmployees = employees.filter(
     emp =>
@@ -595,10 +627,10 @@ const Employees = () => {
               <div className="flex gap-3 pt-2">
                 <button
                   onClick={() => {
-                    if (editingEmployee?.faceRegistered || formData.faceRegistered) {
-                      alert("✅ Face already registered for this employee.");
-                      return;
-                    }
+                   if (editingEmployee?.faceRegistered || formData.faceRegistered) {
+                    alert("Already Registered", "Face is already registered for this employee.");
+                    return;
+                  }
                     enrollingEmployeeRef.current = editingEmployee;
                     setCapturedImages([]);
                     setOpenModal(false);
@@ -675,6 +707,15 @@ const Employees = () => {
           </div>
         </div>
       )}
+      <AppDialog
+        open={dialog.open}
+        type={dialog.type}
+        title={dialog.title}
+        message={dialog.message}
+        confirmLabel={dialog.confirmLabel}
+        onConfirm={dialog.onConfirm}
+        onClose={close}
+      />
 
     </div>
   );
