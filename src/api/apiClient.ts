@@ -13,8 +13,7 @@ export async function apiFetch<T>(
     signal: controller.signal,
     ...options,
     headers: {
-      "Content-Type": "application/json",
-      "x-api-key": "mysecret123",  
+      "Content-Type": "application/json", 
       ...(token && { Authorization: `Bearer ${token}` }),
       ...(options.headers || {}),
     },
