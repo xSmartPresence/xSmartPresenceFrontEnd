@@ -75,13 +75,14 @@ const Employees = () => {
   const [deptOpen,  setDeptOpen]  = useState(false);
   const [shiftOpen, setShiftOpen] = useState(false);
   const [saving,    setSaving]    = useState(false);
+  const [fetchError, setFetchError] = useState("");
   const { dialog, confirm, alert, close } = useDialog();
 
   // ── Fetch employees, departments, shifts on mount ────────────────────────
   useEffect(() => {
     getEmployees()
       .then(data => Array.isArray(data) ? setEmployees(data) : setEmployees([]))
-      .catch(() => {})
+      .catch(() => setFetchError("Failed to load employees. Please try again."))
       .finally(() => setLoadingEmployees(false));
 
     apiFetch<RawDepartment[]>("/departments/")
@@ -451,7 +452,11 @@ const handleDelete = (code: string) => {
           <p className="text-gray-500 text-sm">Manage employee records and face registration</p>
         </div>
       </div>
-
+      {fetchError && (
+        <div className="mb-4 p-4 bg-red-50 border border-red-200 text-red-600 rounded-lg text-sm">
+          {fetchError}
+       </div>
+      )}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
         {/* SEARCH */}
         <div className="order-2 sm:order-1 relative w-full sm:w-64">
