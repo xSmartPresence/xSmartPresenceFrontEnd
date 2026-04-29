@@ -26,6 +26,14 @@ export async function apiFetch<T>(
     throw new Error("Session expired. Please log in again.");
   }
 
+   if (res.status === 403) {
+    throw new Error("Permission denied. You don't have access to this resource.");
+  }
+
+  if (res.status === 500) {
+    throw new Error("Server error. Please try again later.");
+  }
+
   if (!res.ok) {
     const errData = await res.json().catch(() => null);
     throw new Error(errData?.detail || errData?.message || `API request failed: ${res.status}`);
