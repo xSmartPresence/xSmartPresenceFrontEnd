@@ -64,3 +64,13 @@ export const deleteAnomaly = async (id: number): Promise<void> => {
     method: "DELETE",
   });
 };
+
+export const correctAnomaly = async (
+  id: number,
+  payload: { correction_reason: string; correction_notes: string }
+): Promise<void> => {
+  return apiFetch<void>(`/anomalies/${id}/correct`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+};

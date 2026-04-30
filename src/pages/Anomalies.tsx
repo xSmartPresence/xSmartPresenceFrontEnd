@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { AlertTriangle, Eye, ArrowLeftRight, X, Pencil, Trash2 } from "lucide-react";
-import { getAnomalies, resolveAnomaly, deleteAnomaly, updateAnomaly } from "../services/anomalies.service";
+import { getAnomalies, resolveAnomaly, deleteAnomaly, updateAnomaly, correctAnomaly } from "../services/anomalies.service";
 import AppDialog from "../components/AppDialog";
 import { useDialog } from "../hooks/useDialog";
 import type { Anomaly } from "../types/anomalies.types";
@@ -40,6 +40,7 @@ const Anomalies = () => {
   const [viewingImage, setViewingImage] = useState<string | null>(null);
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [fetchError, setFetchError] = useState("");
   const { dialog, confirm, alert, close } = useDialog();
 
 useEffect(() => {
@@ -61,6 +62,9 @@ useEffect(() => {
         if (!mounted) return;
         setData(incoming);
         setLastUpdated(new Date());
+      })
+      .catch(() => {
+        if (mounted) setFetchError("Failed to load anomalies. Please try again.");
       })
       .finally(() => {
         if (mounted) setLoading(false);
@@ -89,29 +93,32 @@ useEffect(() => {
   };
 
   // ── Manual correct submit ─────────────────────────────────────────────────
-  const handleManualCorrect = async () => {
-    if (!correctingId) return;
+ const handleManualCorrect = async () => {
+  if (!correctingId) return;
 
-    if (!correctionReason.trim()) {
-      alert("Validation", "Please select a correction reason");
-      return;
-    }
+  if (!correctionReason.trim()) {
+    alert("Validation", "Please select a correction reason");
+    return;
+  }
 
-    setSubmitting(true);
-    try {
-      await resolveAnomaly(correctingId);
-      setData(prev =>
-        prev.map(item => item.id === correctingId ? { ...item, resolved: true } : item)
-      );
-      setCorrectingId(null);
-      setCorrectionReason(correctionReasons[0]);
-      setCorrectionNotes("");
-    } catch (err: unknown) {
-      alert("Error", "Failed to correct anomaly: " + errMsg(err));
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  setSubmitting(true);
+  try {
+    await correctAnomaly(correctingId, {
+      correction_reason: correctionReason,
+      correction_notes: correctionNotes,
+    });
+    setData(prev =>
+      prev.map(item => item.id === correctingId ? { ...item, resolved: true } : item)
+    );
+    setCorrectingId(null);
+    setCorrectionReason(correctionReasons[0]);
+    setCorrectionNotes("");
+  } catch (err: unknown) {
+    alert("Error", "Failed to correct anomaly: " + errMsg(err));
+  } finally {
+    setSubmitting(false);
+  }
+};
 
   // ── Delete anomaly ────────────────────────────────────────────────────────
  const handleDeleteAnomaly = (id: number) => {
@@ -205,6 +212,12 @@ useEffect(() => {
 
         </div>
       </div>
+      
+      {fetchError && (
+        <div className="mb-4 p-4 bg-red-50 border border-red-200 text-red-600 rounded-lg text-sm">
+          {fetchError}
+        </div>
+      )}
 
       {/* ALERT BAR */}
       {!showResolved && filtered.length > 0 && (
