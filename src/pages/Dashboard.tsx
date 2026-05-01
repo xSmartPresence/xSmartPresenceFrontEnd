@@ -117,6 +117,10 @@ useEffect(() => {
       ws.onmessage = (event) => {
         try {
           const msg = JSON.parse(event.data) as Record<string, unknown>;
+    
+          // ignore ping messages from server
+          if (msg.type === "ping") return;
+          
           setLiveSummary({
             total:     (msg.total      ?? msg.total_employees  ?? 0) as number,
             present:   (msg.present    ?? msg.present_today    ?? 0) as number,
