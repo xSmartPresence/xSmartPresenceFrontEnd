@@ -23,6 +23,9 @@ const correctionReasons = [
 const errMsg = (err: unknown) =>
   err instanceof Error ? err.message : String(err);
 
+const formatTitle = (title: string) =>
+  title.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+
 const Anomalies = () => {
   const [showResolved, setShowResolved]         = useState(false);
   const [data, setData]                         = useState<Anomaly[]>([]);
@@ -41,6 +44,7 @@ const Anomalies = () => {
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [fetchError, setFetchError] = useState("");
+  const [severityFilter, setSeverityFilter] = useState("ALL");
   const { dialog, confirm, alert, close } = useDialog();
 
 useEffect(() => {
@@ -173,9 +177,9 @@ useEffect(() => {
     }
   };
 
-  const filtered = showResolved
-    ? data.filter(item => item.resolved)
-    : data.filter(item => !item.resolved);
+  const filtered = data
+  .filter(item => showResolved ? item.resolved : !item.resolved)
+  .filter(item => severityFilter === "ALL" ? true : item.severity === severityFilter);
 
   return (
     <div>
@@ -212,6 +216,23 @@ useEffect(() => {
 
         </div>
       </div>
+
+      {/* SEVERITY FILTER */}
+<div className="flex flex-wrap gap-2 mb-4">
+  {["ALL", "CRITICAL", "HIGH", "MEDIUM", "LOW"].map(level => (
+    <button
+      key={level}
+      onClick={() => setSeverityFilter(level)}
+      className={`px-3 py-1.5 text-xs font-medium rounded-full border transition
+        ${severityFilter === level
+          ? "bg-[#0B1E3F] text-white border-[#0B1E3F]"
+          : "bg-white text-gray-600 border-gray-300 hover:border-gray-400"
+        }`}
+    >
+      {level === "ALL" ? "All" : level.charAt(0) + level.slice(1).toLowerCase()}
+    </button>
+  ))}
+</div>
       
       {fetchError && (
         <div className="mb-4 p-4 bg-red-50 border border-red-200 text-red-600 rounded-lg text-sm">
@@ -256,7 +277,7 @@ useEffect(() => {
                   </div>
                   <div>
                     <h3 className="font-semibold text-gray-800">
-                      {item.title}
+                      {formatTitle(item.title)}
                       <span className="ml-2 text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-700 font-medium">
                         {item.severity}
                       </span>
