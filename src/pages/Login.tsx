@@ -18,28 +18,28 @@ function Login() {
   }, [navigate]);
 
   const handleLogin = async () => {
+  setError("");
+
+  if (!email.trim()) {
+    setError("Please enter your email");
+    return;
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    setError("Please enter a valid email address");
+    return;
+  }
+  if (!password.trim()) {
+    setError("Please enter your password");
+    return;
+  }
+  if (password.length < 4) {
+    setError("Password must be at least 4 characters");
+    return;
+  }
 
   setLoading(true);
   
   try {
-  
-   if (!email || !password) {
-    setError("Please enter email and password");
-    setLoading(false);   
-    return;
-  }
-
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-   setError("Please enter a valid email address");
-   setLoading(false);
-   return;
-  }
-
-  if (password.length < 4) {
-   setError("Password must be at least 4 characters");
-   setLoading(false);
-   return;
- }
 
    const response = await fetch(`${API_BASE}/auth/login`, {
   method: "POST",

@@ -146,17 +146,37 @@ useEffect(() => {
     if (!editingAnomaly) return;
 
     if (!editForm.title.trim()) {
-      alert("Validation", "Title is required");
-      return;
-    }
-    if (!editForm.description.trim()) {
-      alert("Validation", "Description is required");
-      return;
-    }
-    if (!editForm.employee.trim()) {
-      alert("Validation", "Employee is required");
-      return;
-    }
+  alert("Validation", "Title is required");
+  return;
+}
+if (/_/.test(editForm.title)) {
+  alert("Validation", "Title should not contain underscores — use spaces instead");
+  return;
+}
+if (/\d/.test(editForm.title)) {
+  alert("Validation", "Title should not contain numbers");
+  return;
+}
+if (editForm.title.trim().length < 3) {
+  alert("Validation", "Title must be at least 3 characters");
+  return;
+}
+if (!editForm.description.trim()) {
+  alert("Validation", "Description is required");
+  return;
+}
+if (editForm.description.trim().length < 5) {
+  alert("Validation", "Description must be at least 5 characters");
+  return;
+}
+if (editForm.description.trim().length > 300) {
+  alert("Validation", "Description cannot exceed 300 characters");
+  return;
+}
+if (!editForm.employee.trim()) {
+  alert("Validation", "Employee is required");
+  return;
+}
 
     setEditSubmitting(true);
     try {

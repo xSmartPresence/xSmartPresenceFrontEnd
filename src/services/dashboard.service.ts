@@ -99,7 +99,7 @@ export const getDashboardData = async (signal?: AbortSignal): Promise<DashboardD
     systemHealth = await getSystemHealth(signal);
   } catch (err) {
     if ((err as Error).name === "AbortError") throw err;
-    console.warn("System health fetch failed, using defaults:", err);
+    console.warn("System health fetch failed:", err); 
   }
 
   const rawAttendance = Array.isArray(raw.attendance_trend)

@@ -5,26 +5,35 @@ export async function apiFetch<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const token = localStorage.getItem("token");
-
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 60000);
+  const timeout = setTimeout(() => controller.abort(), 30000);
 
-  const res = await fetch(`${API_BASE}${endpoint}`, {
+let res: Response;
+try {
+  res = await fetch(`${API_BASE}${endpoint}`, {
     signal: controller.signal,
     ...options,
     headers: {
-      "Content-Type": "application/json", 
+      "Content-Type": "application/json",
       ...(token && { Authorization: `Bearer ${token}` }),
       ...(options.headers || {}),
     },
-  }).finally(() => clearTimeout(timeout));
+  });
+} catch (err: any) {
+  if (err.name === "AbortError") {
+    throw new Error("Request timed out. Please check your connection.");
+  }
+  throw err;
+} finally {
+  clearTimeout(timeout);
+}
 
   if (res.status === 401) {
-    localStorage.removeItem("token");
-    localStorage.removeItem("role");
-    window.location.href = "/";
-    throw new Error("Session expired. Please log in again.");
-  }
+  localStorage.removeItem("token");
+  localStorage.removeItem("role");
+  window.location.href = "/";
+  throw new Error("Session expired. Please log in again.");
+}
 
    if (res.status === 403) {
     throw new Error("Permission denied. You don't have access to this resource.");

@@ -80,8 +80,16 @@ const Shifts = () => {
 
     // ✅ Shift validations
     if (activeTab === "shifts") {
-      if (!shiftForm.shift_name.trim()) {
+     if (!shiftForm.shift_name.trim()) {
   alert("Validation", "Shift name is required");
+  return;
+}
+if (/^\d+$/.test(shiftForm.shift_name.trim())) {
+  alert("Validation", "Shift name cannot be only numbers");
+  return;
+}
+if (/[^a-zA-Z0-9\s\-]/.test(shiftForm.shift_name)) {
+  alert("Validation", "Shift name should not contain special characters");
   return;
 }
 if (!shiftForm.start_time) {
@@ -118,8 +126,24 @@ if ((shiftForm.overtime_minutes ?? 0) < 0) {
 
     // ✅ Department validations
     if (activeTab === "departments") {
-      if (!deptForm.name.trim()) {
+     if (!deptForm.name.trim()) {
   alert("Validation", "Department name is required");
+  return;
+}
+if (/\d/.test(deptForm.name)) {
+  alert("Validation", "Department name should not contain numbers");
+  return;
+}
+if (/[^a-zA-Z\s\-]/.test(deptForm.name)) {
+  alert("Validation", "Department name should only contain letters");
+  return;
+}
+if (deptForm.head.trim() && /\d/.test(deptForm.head)) {
+  alert("Validation", "Department head name should not contain numbers");
+  return;
+}
+if (deptForm.head.trim() && /[^a-zA-Z\s\-']/.test(deptForm.head)) {
+  alert("Validation", "Department head name should only contain letters");
   return;
 }
 if (deptForm.employee_count < 0) {

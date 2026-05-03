@@ -115,6 +115,14 @@ if (settings.overtimeAfter < 1) {
   alert("Validation", "Holiday name is required");
   return;
 }
+if (/\d/.test(holidayForm.name)) {
+  alert("Validation", "Holiday name should not contain numbers");
+  return;
+}
+if (/[^a-zA-Z\s\-]/.test(holidayForm.name)) {
+  alert("Validation", "Holiday name should only contain letters");
+  return;
+}
 if (!holidayForm.holiday_date) {
   alert("Validation", "Please select a holiday date");
   return;
@@ -156,20 +164,44 @@ if (new Date(holidayForm.holiday_date) < new Date(new Date().toDateString())) {
 
   // ── Create admin ──────────────────────────────────────────────────────
   const handleCreateAdmin = async () => {
-    if (!adminForm.name || !adminForm.email || !adminForm.password) {
-  alert("Validation", "Please fill all fields");
+    if (!adminForm.name.trim()) {
+  alert("Validation", "Full name is required");
+  return;
+}
+if (/\d/.test(adminForm.name)) {
+  alert("Validation", "Full name should not contain numbers");
+  return;
+}
+if (/[^a-zA-Z\s\-']/.test(adminForm.name)) {
+  alert("Validation", "Full name should only contain letters");
+  return;
+}
+if (adminForm.name.trim().length < 2) {
+  alert("Validation", "Full name must be at least 2 characters");
+  return;
+}
+if (!adminForm.email.trim()) {
+  alert("Validation", "Email is required");
   return;
 }
 if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(adminForm.email)) {
   alert("Validation", "Please enter a valid email address");
   return;
 }
-if (adminForm.password.length < 6) {
-  alert("Validation", "Password must be at least 6 characters");
+if (!adminForm.password) {
+  alert("Validation", "Password is required");
   return;
 }
-if (adminForm.name.trim().length < 3) {
-  alert("Validation", "Name must be at least 3 characters");
+if (adminForm.password.length < 8) {
+  alert("Validation", "Password must be at least 8 characters");
+  return;
+}
+if (!/[A-Z]/.test(adminForm.password)) {
+  alert("Validation", "Password must contain at least one uppercase letter");
+  return;
+}
+if (!/\d/.test(adminForm.password)) {
+  alert("Validation", "Password must contain at least one number");
   return;
 }
 

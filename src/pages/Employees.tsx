@@ -332,20 +332,28 @@ else
 
   // ── CRUD ──────────────────────────────────────────────────────────────────
   const handleSave = async () => {
-   if (!formData.code.trim()) {
+  if (!formData.code.trim()) {
   alert("Validation", "Employee code is required");
   return;
 }
-if (!/^[A-Za-z0-9]+$/.test(formData.code.trim())) {
-  alert("Validation", "Employee code can only contain letters and numbers");
+if (!/^[A-Z]{2,5}\d{1,6}$/.test(formData.code.trim())) {
+  alert("Validation", "Code must be like EMP001 — uppercase letters then numbers (e.g. EMP001, HR002)");
   return;
 }
 if (!formData.name.trim()) {
-  alert("Validation", "Employee name is required");
+  alert("Validation", "Full name is required");
   return;
 }
-if (formData.name.trim().length < 3) {
-  alert("Validation", "Employee name must be at least 3 characters");
+if (/\d/.test(formData.name)) {
+  alert("Validation", "Full name should not contain numbers");
+  return;
+}
+if (/[^a-zA-Z\s\-']/.test(formData.name)) {
+  alert("Validation", "Full name should only contain letters");
+  return;
+}
+if (formData.name.trim().length < 2) {
+  alert("Validation", "Full name must be at least 2 characters");
   return;
 }
 if (!formData.department_id) {

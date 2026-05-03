@@ -30,9 +30,7 @@ import { useEffect, useState, useRef } from "react";
 import { getDashboardData, getSystemHealth } from "../services/dashboard.service";
 import type { DashboardData } from "../types/dashboard.types";
 
-const WS_URL = import.meta.env.VITE_WS_URL as string;
-if (!WS_URL) throw new Error("VITE_WS_URL is not set in .env");
-
+const WS_URL = (import.meta.env.VITE_WS_URL as string) ?? "";
 // Shape of the live summary pushed over WebSocket
 interface LiveSummary {
   total: number;
@@ -66,24 +64,17 @@ function Dashboard() {
   }, []);
 
   // ── Initial API fetch ─────────────────────────────────────────────────────
-useEffect(() => {
-  const controller = new AbortController();
-
-  getDashboardData(controller.signal)
+  useEffect(() => {
+  getDashboardData()
     .then((res) => {
-      if (!controller.signal.aborted) {
-        setData(res);
-        setLoading(false);
-      }
+      setData(res);
+      setLoading(false);
     })
     .catch((err) => {
-      if (err.name === "AbortError") return; // ignore cleanup aborts — not a real error
       console.error("Dashboard API Error:", err);
       setError("Failed to load dashboard data");
       setLoading(false);
     });
-
-  return () => controller.abort(); // cancel fetch if component unmounts
 }, []);
 
   // ── WebSocket connection with auto-reconnect ──────────────────────────────
@@ -99,7 +90,7 @@ useEffect(() => {
     }
 
     const token = localStorage.getItem("token");
-    if (!token) {
+    if (!token || token.length < 20) { 
       setWsStatus("offline");
       return;
     }
@@ -173,6 +164,9 @@ useEffect(() => {
 }, []);
 
 useEffect(() => {
+  const token = localStorage.getItem("token");
+  if (!token) return;
+  
   let mounted = true;
 
   const fetchHealth = async () => {
