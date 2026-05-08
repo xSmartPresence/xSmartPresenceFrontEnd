@@ -39,7 +39,6 @@ const mapAnomaly = (a: RawAnomaly): Anomaly => ({
 
 export const getAnomalies = async (): Promise<Anomaly[]> => {
   const raw = await apiFetch<RawAnomaly[]>("/anomalies/");
-  console.log("🔍 Raw anomalies from API:", raw); 
   if (!Array.isArray(raw)) return [];
   return raw.map(mapAnomaly);
 };

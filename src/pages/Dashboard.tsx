@@ -23,7 +23,6 @@ import {
   Radio,
   Timer,
   Wifi,
-  WifiOff,
 } from "lucide-react";
 
 import { useEffect, useState, useRef } from "react";
@@ -265,18 +264,12 @@ useEffect(() => {
       {/* HEADER */}
       <div className="flex items-center justify-between mb-1">
         <h1 className="text-2xl font-bold text-gray-800">Dashboard</h1>
-       <div className={`flex items-center gap-1.5 text-xs px-3 py-1 rounded-full ${
-          wsStatus === "connected" ? "bg-green-100 text-green-700"
-          : wsStatus === "offline"  ? "bg-red-100 text-red-500"
-          : "bg-yellow-100 text-yellow-600"
-       }`}>
-          {wsStatus === "connected" ? <Wifi size={12} />
-          : wsStatus === "offline"  ? <WifiOff size={12} />
-          : <Wifi size={12} />} 
-          {wsStatus === "connected" ? "Live"
-          : wsStatus === "offline"  ? "Backend Offline"
-          : "Connecting…"}
-       </div>
+        {wsStatus === "connected" && (
+  <div className="flex items-center gap-1.5 text-xs px-3 py-1 rounded-full bg-green-100 text-green-700">
+    <Wifi size={12} />
+    Live
+  </div>
+)}
       </div>
       <p className="text-gray-500 text-sm mb-2">Real-time attendance overview</p>
 
