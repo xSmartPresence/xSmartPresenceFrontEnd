@@ -253,15 +253,20 @@ if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editForm.email)) {
   return;
 }
 
-    setUpdatingUser(true);
     try {
-      await updateAdminUser(editingUser.id, {
-        name:   editForm.name,
-        email:  editForm.email,
-        role:   editForm.role,
-        status: editForm.status,
-      });
-      const updatedUsers = await getAdminUsers();
+  const response = await updateAdminUser(editingUser.id, {
+    name:   editForm.name,
+    email:  editForm.email,
+    role:   editForm.role,
+    status: editForm.status,
+  });
+
+  if (response?.token) {
+    localStorage.setItem("token", response.token);
+  }
+
+  const updatedUsers = await getAdminUsers();
+    
       setUsers(updatedUsers);
       setEditModal(false);
       setEditingUser(null);

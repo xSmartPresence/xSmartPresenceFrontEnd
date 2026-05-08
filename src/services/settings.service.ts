@@ -36,6 +36,18 @@ interface RawAdminUser {
   is_active?: unknown;
 }
 
+interface RawUpdateUserResponse {
+  id?: unknown;
+  user_id?: unknown;
+  username?: unknown;
+  name?: unknown;
+  full_name?: unknown;
+  email?: unknown;
+  role?: unknown;
+  is_active?: unknown;
+  token?: string;
+}
+
 const num = (v: unknown, fallback = 0): number =>
   typeof v === "number" ? v : fallback;
 
@@ -125,20 +137,23 @@ export const createAdminUser = async (payload: CreateAdminPayload): Promise<Admi
 export const updateAdminUser = async (
   id: number,
   payload: UpdateAdminPayload
-): Promise<AdminUser> => {
+): Promise<{ user: AdminUser; token?: string }> => {
   const body = {
-    username:  payload.name,                  // correct field
+    username:  payload.name,
     email:     payload.email,
-    role:      payload.role.toLowerCase(),    // lowercase
-    is_active: payload.status === "Active",   // boolean
+    role:      payload.role.toLowerCase(),
+    is_active: payload.status === "Active",
   };
 
-  const raw = await apiFetch<RawAdminUser>(`/auth/users/${id}`, {
+  const raw = await apiFetch<RawUpdateUserResponse>(`/auth/users/${id}`, {
     method: "PUT",
     body: JSON.stringify(body),
   });
 
-  return mapAdminUser(raw);
+  return {
+    user:  mapAdminUser(raw),
+    token: raw.token,
+  };
 };
 
 export const deleteAdminUser = async (id: number): Promise<void> => {
