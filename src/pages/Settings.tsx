@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Shield, Users, Save, Plus, X, Pencil, Trash2,
 } from "lucide-react";
@@ -53,6 +53,7 @@ const Settings = () => {
   const [editRoleOpen, setEditRoleOpen]     = useState(false);
   const [editStatusOpen, setEditStatusOpen] = useState(false);
   const { dialog, confirm, alert, close } = useDialog();
+  const isUpdating = useRef(false);
 
   // ── Fetch on mount ────────────────────────────────────────────────────
   useEffect(() => {
@@ -238,44 +239,50 @@ if (!/\d/.test(adminForm.password)) {
 
   // ── Update user ───────────────────────────────────────────────────────
   const handleUpdateUser = async () => {
-    if (!editingUser || updatingUser) return;
+  if (!editingUser || updatingUser) return;
+  if (isUpdating.current) return;
+  isUpdating.current = true;
 
-    if (!editForm.name.trim()) {
-  alert("Validation", "Name is required");
-  return;
-}
-if (!editForm.email.trim()) {
-  alert("Validation", "Email is required");
-  return;
-}
-if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editForm.email)) {
-  alert("Validation", "Please enter a valid email address");
-  return;
-}
-
-    try {
-  const response = await updateAdminUser(editingUser.id, {
-    name:   editForm.name,
-    email:  editForm.email,
-    role:   editForm.role,
-    status: editForm.status,
-  });
-
-  if (response?.token) {
-    localStorage.setItem("token", response.token);
+  if (!editForm.name.trim()) {
+    alert("Validation", "Name is required");
+    isUpdating.current = false;
+    return;
+  }
+  if (!editForm.email.trim()) {
+    alert("Validation", "Email is required");
+    isUpdating.current = false;
+    return;
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editForm.email)) {
+    alert("Validation", "Please enter a valid email address");
+    isUpdating.current = false;
+    return;
   }
 
-  const updatedUsers = await getAdminUsers();
-    
-      setUsers(updatedUsers);
-      setEditModal(false);
-      setEditingUser(null);
-    } catch (err: unknown) {
-      alert("Error", "Failed to update user: " + errMsg(err));
-    } finally {
-      setUpdatingUser(false);
+  setUpdatingUser(true);
+  try {
+    const response = await updateAdminUser(editingUser.id, {
+      name:   editForm.name,
+      email:  editForm.email,
+      role:   editForm.role,
+      status: editForm.status,
+    });
+
+    if (response.token) {
+      localStorage.setItem("token", response.token);
     }
-  };
+
+    const updatedUsers = await getAdminUsers();
+    setUsers(updatedUsers);
+    setEditModal(false);
+    setEditingUser(null);
+  } catch (err: unknown) {
+    alert("Error", "Failed to update user: " + errMsg(err));
+  } finally {
+    setUpdatingUser(false);
+    isUpdating.current = false;
+  }
+};
 
   return (
     <div>
