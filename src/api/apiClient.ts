@@ -29,11 +29,17 @@ try {
 }
 
   if (res.status === 401) {
-  localStorage.removeItem("token");
-  localStorage.removeItem("role");
-  window.location.href = "/";
+  const isBackgroundRequest = endpoint.includes('/health') || 
+                               endpoint.includes('/dashboard');
+  
+  if (!isBackgroundRequest) {
+    localStorage.removeItem("token");
+    localStorage.removeItem("role");
+    window.location.href = "/";
+  }
+  
   throw new Error("Session expired. Please log in again.");
-}
+ }
 
    if (res.status === 403) {
     throw new Error("Permission denied. You don't have access to this resource.");
