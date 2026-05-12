@@ -72,8 +72,10 @@ export async function apiFetch<T>(
   const timeout = setTimeout(() => controller.abort(), 30000);
 
   // Background endpoints: polling calls that should never log the user out
+  // Fixed — only actual health polling
   const isBackgroundRequest =
-    endpoint.includes("/health") || endpoint.includes("/dashboard");
+  endpoint.includes("/health/dashboard") ||
+  endpoint.includes("/health");
 
   const buildHeaders = (accessToken: string | null): HeadersInit => ({
     "Content-Type": "application/json",
