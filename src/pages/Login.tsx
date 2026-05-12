@@ -13,74 +13,78 @@ function Login() {
   const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
-     const token = localStorage.getItem("token");
-     if (token) navigate("/dashboard");
+    const token = localStorage.getItem("token");
+    if (token) navigate("/dashboard");
   }, [navigate]);
 
   const handleLogin = async () => {
-  setError("");
+    setError("");
 
-  if (!email.trim()) {
-    setError("Please enter your email");
-    return;
-  }
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    setError("Please enter a valid email address");
-    return;
-  }
-  if (!password.trim()) {
-    setError("Please enter your password");
-    return;
-  }
-  if (password.length < 4) {
-    setError("Password must be at least 4 characters");
-    return;
-  }
-
-  setLoading(true);
-  
-  try {
-
-   const response = await fetch(`${API_BASE}/auth/login`, {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({
-  email: email.trim().toLowerCase(),
-  password: password.trim(),
-}),
-});
-
-    const data = await response.json();
-
-
-    if (!response.ok) {
-      setError(data.detail || data.message || "Login failed");
-      setLoading(false);
+    if (!email.trim()) {
+      setError("Please enter your email");
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setError("Please enter a valid email address");
+      return;
+    }
+    if (!password.trim()) {
+      setError("Please enter your password");
+      return;
+    }
+    if (password.length < 4) {
+      setError("Password must be at least 4 characters");
       return;
     }
 
- localStorage.setItem("token", data.token || data.access_token);
- if (data.role) localStorage.setItem("role", data.role);
- if (data.name) localStorage.setItem("name", data.name);
+    setLoading(true);
 
- // Save email from input directly — don't rely on API returning it
- localStorage.setItem("email", data.email || email.trim().toLowerCase());
- if (data.org) localStorage.setItem("org", data.org);
+    try {
+      const response = await fetch(`${API_BASE}/auth/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          password: password.trim(),
+        }),
+      });
 
-setError("");
-navigate("/dashboard");
+      const data = await response.json();
 
-  } catch {
-  setError("Server connection error");
-} finally {
-  setLoading(false);  
-}
+      if (!response.ok) {
+        setError(data.detail || data.message || "Login failed");
+        setLoading(false);
+        return;
+      }
+
+      // Store access token
+      localStorage.setItem("token", data.token || data.access_token);
+
+      // ✅ NEW-H FIX: Store refresh token so apiClient can use it on 401
+      if (data.refresh_token) {
+        localStorage.setItem("refresh_token", data.refresh_token);
+      }
+
+      if (data.role) localStorage.setItem("role", data.role);
+      if (data.name) localStorage.setItem("name", data.name);
+
+      // Save email from input directly — don't rely on API returning it
+      localStorage.setItem("email", data.email || email.trim().toLowerCase());
+      if (data.org) localStorage.setItem("org", data.org);
+
+      setError("");
+      navigate("/dashboard");
+    } catch {
+      setError("Server connection error");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-   <div className="min-h-[100dvh] bg-gray-100 flex items-center justify-center px-4">
+    <div className="min-h-[100dvh] bg-gray-100 flex items-center justify-center px-4">
       <div className="bg-white w-full max-w-md mx-auto p-6 sm:p-8 my-6 rounded-2xl shadow-md">
 
         {/* ICON */}
@@ -131,30 +135,29 @@ navigate("/dashboard");
         </div>
 
         {/* PASSWORD */}
-        {/* PASSWORD */}
-<div className="mb-4">
-  <label className="block text-sm font-medium text-gray-600 mb-1">
-    Password
-  </label>
-  <div className="relative">
-    <input
-      type={showPassword ? "text" : "password"}
-      placeholder="Enter your password"
-      value={password}
-      onChange={(e) => { setPassword(e.target.value.trim()); setError(""); }}
-      onKeyDown={(e) => e.key === "Enter" && handleLogin()}
-      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
-        focus:outline-none focus:ring-2 focus:ring-blue-500 pr-10"
-    />
-    <button
-      type="button"
-      onClick={() => setShowPassword(!showPassword)}
-      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-    >
-      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-    </button>
-  </div>
-</div>
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-600 mb-1">
+            Password
+          </label>
+          <div className="relative">
+            <input
+              type={showPassword ? "text" : "password"}
+              placeholder="Enter your password"
+              value={password}
+              onChange={(e) => { setPassword(e.target.value.trim()); setError(""); }}
+              onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
+                focus:outline-none focus:ring-2 focus:ring-blue-500 pr-10"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            >
+              {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
+          </div>
+        </div>
 
         {/* ERROR MESSAGE */}
         {error && (
@@ -164,13 +167,13 @@ navigate("/dashboard");
         )}
 
         {/* LOGIN BUTTON */}
-       <button
+        <button
           onClick={handleLogin}
           disabled={loading}
           className="w-full bg-blue-600 text-white py-2.5 rounded-lg font-semibold hover:bg-blue-700 transition disabled:opacity-50"
         >
           {loading ? "Signing in..." : "Sign In"}
-      </button>
+        </button>
 
       </div>
     </div>
