@@ -101,10 +101,24 @@ export async function apiFetch<T>(
 
   // ── 401 handling ────────────────────────────────────────────────────────────
   if (res.status === 401) {
-    // Background requests (health checks, dashboard polls) are silently ignored
-    // so they never kick the user out mid-session.
     if (isBackgroundRequest) {
-      throw new Error("Session expired. Please log in again.");
+      // Silent refresh attempt for background requests — no logout
+      if (!isRefreshing) {
+        isRefreshing = true;
+        const newToken = await tryRefreshToken();
+        isRefreshing = false;
+
+        if (newToken) {
+          refreshQueue.forEach((resolve) => resolve(newToken));
+          refreshQueue = [];
+          const retryRes = await fetch(`${API_BASE}${endpoint}`, {
+            ...options,
+            headers: buildHeaders(newToken),
+          });
+          if (retryRes.ok) return retryRes.json() as Promise<T>;
+        }
+      }
+      throw new Error("Background request failed silently.");
     }
 
     // ✅ NEW-H FIX: Try to refresh before giving up.

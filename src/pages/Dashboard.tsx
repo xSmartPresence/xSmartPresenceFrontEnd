@@ -71,8 +71,19 @@ function Dashboard() {
     })
     .catch((err) => {
       console.error("Dashboard API Error:", err);
-      setError("Failed to load dashboard data");
-      setLoading(false);
+      // Retry once after 2s — refresh interceptor may have just kicked in
+      setTimeout(() => {
+        getDashboardData()
+          .then((res) => {
+            setData(res);
+            setLoading(false);
+            setError("");
+          })
+          .catch(() => {
+            setError("Failed to load dashboard data");
+            setLoading(false);
+          });
+      }, 2000);
     });
 }, []);
 
