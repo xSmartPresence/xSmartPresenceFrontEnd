@@ -102,25 +102,39 @@ export async function apiFetch<T>(
   // ── 401 handling ────────────────────────────────────────────────────────────
   if (res.status === 401) {
     if (isBackgroundRequest) {
-      // Silent refresh attempt for background requests — no logout
-      if (!isRefreshing) {
-        isRefreshing = true;
-        const newToken = await tryRefreshToken();
-        isRefreshing = false;
+  if (!isRefreshing) {
+    isRefreshing = true;
+    const newToken = await tryRefreshToken();
+    isRefreshing = false;
 
-        if (newToken) {
-          refreshQueue.forEach((resolve) => resolve(newToken));
-          refreshQueue = [];
+    if (newToken) {
+      refreshQueue.forEach((resolve) => resolve(newToken));
+      refreshQueue = [];
+      const retryRes = await fetch(`${API_BASE}${endpoint}`, {
+        ...options,
+        headers: buildHeaders(newToken),
+      });
+      if (retryRes.ok) return retryRes.json() as Promise<T>;
+    }
+  } else {
+    // Refresh already in progress — wait for it, then retry silently
+    return new Promise<T>((resolve, reject) => {
+      refreshQueue.push(async (newToken: string) => {
+        try {
           const retryRes = await fetch(`${API_BASE}${endpoint}`, {
             ...options,
             headers: buildHeaders(newToken),
           });
-          if (retryRes.ok) return retryRes.json() as Promise<T>;
+          if (retryRes.ok) resolve(await retryRes.json());
+          else reject(new Error("Background retry failed silently."));
+        } catch (err) {
+          reject(err);
         }
-      }
-      throw new Error("Background request failed silently.");
-    }
-
+      });
+    });
+  }
+  throw new Error("Background request failed silently.");
+}
     // ✅ NEW-H FIX: Try to refresh before giving up.
     if (!isRefreshing) {
       // Only one refresh attempt at a time — other concurrent calls queue up.
