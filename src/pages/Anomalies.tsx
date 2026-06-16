@@ -19,6 +19,7 @@ const severityStyle = {
   HIGH:     "border-red-500 bg-red-50",
   MEDIUM:   "border-yellow-500 bg-yellow-50",
   LOW:      "border-blue-500 bg-blue-50",
+  INFO:     "border-green-400 bg-green-50",
 };
 
 const correctionReasons = [

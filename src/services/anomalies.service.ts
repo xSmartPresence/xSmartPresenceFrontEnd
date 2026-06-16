@@ -34,7 +34,7 @@ const bool = (v: unknown, fallback = false): boolean =>
 const mapAnomaly = (a: RawAnomaly): Anomaly => ({
   id:              a.id,
   title:           str(a.title)        || str(a.anomaly_type),
-  anomaly_type:    str(a.anomaly_type) || undefined,
+  anomaly_type: (str(a.anomaly_type) || str(a.title)).toUpperCase() || undefined,
   severity:        (str(a.severity)    || "MEDIUM") as Anomaly["severity"],
   description:     str(a.description)  || str(a.details),
   employee:        str(a.employee)     || str(a.employee_name) || "Unknown",
