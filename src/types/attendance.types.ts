@@ -9,6 +9,9 @@ export interface AttendanceRecord {
   hours: string;
   status: string;
   anomaly?: string;
+  late_minutes?: number;
+  early_exit_minutes?: number;
+  overtime_minutes?: number;
 }
 
 export interface AttendanceQueryParams {

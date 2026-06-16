@@ -77,7 +77,7 @@ export default function AttendanceCalendar() {
       <div className="flex gap-3 items-center">
         <input
           type="text"
-          placeholder="Enter Employee ID or Name..."
+          placeholder="Enter Employee ID (e.g. EMP001)..."
           value={inputValue}
           onChange={e => setInputValue(e.target.value)}
           onKeyDown={e => e.key === "Enter" && handleSearch()}

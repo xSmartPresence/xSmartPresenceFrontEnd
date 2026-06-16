@@ -1,9 +1,18 @@
 import { useState, useEffect } from "react";
 import { AlertTriangle, Eye, ArrowLeftRight, X, Pencil, Trash2 } from "lucide-react";
-import { getAnomalies, resolveAnomaly, deleteAnomaly, updateAnomaly, correctAnomaly } from "../services/anomalies.service";
+import { getAnomalies, resolveAnomaly, deleteAnomaly, updateAnomaly, correctAnomaly, markAttendanceFromAnomaly } from "../services/anomalies.service";
 import AppDialog from "../components/AppDialog";
 import { useDialog } from "../hooks/useDialog";
 import type { Anomaly } from "../types/anomalies.types";
+
+const ANOMALY_TYPE_BADGE: Record<string, string> = {
+  UNKNOWN_FACE:       "bg-red-100 text-red-600",
+  LOW_CONFIDENCE:     "bg-orange-100 text-orange-600",
+  EXIT_WITHOUT_ENTRY: "bg-yellow-100 text-yellow-700",
+  MULTIPLE_ENTRY:     "bg-yellow-100 text-yellow-700",
+  CAMERA_OFFLINE:     "bg-gray-100 text-gray-600",
+  CAMERA_RESTORED:    "bg-green-100 text-green-600",
+};
 
 const severityStyle = {
   CRITICAL: "border-red-600 bg-red-50",
@@ -46,6 +55,14 @@ const Anomalies = () => {
   const [fetchError, setFetchError] = useState("");
   const [severityFilter, setSeverityFilter] = useState("ALL");
   const { dialog, confirm, alert, close } = useDialog();
+  const [anomalyTypeFilter, setAnomalyTypeFilter] = useState("ALL");
+  const [cameraFilter, setCameraFilter] = useState("ALL");
+  const [dateFilter, setDateFilter] = useState("");
+  const [resolvingId, setResolvingId] = useState<number | null>(null);
+  const [resolveNote, setResolveNote] = useState("");
+  const [markingAttendanceId, setMarkingAttendanceId] = useState<number | null>(null);
+  const [markAttendanceEmployeeId, setMarkAttendanceEmployeeId] = useState("");
+  const [markingSubmitting, setMarkingSubmitting] = useState(false);
 
 useEffect(() => {
   const closeDropdowns = () => {
@@ -85,11 +102,11 @@ useEffect(() => {
 }, []);
 
   // ── Mark resolved ─────────────────────────────────────────────────────────
-  const markResolved = async (id: number) => {
+  const markResolved = async (id: number, note?: string) => {
     try {
-      await resolveAnomaly(id);
+      await resolveAnomaly(id, note);
       setData(prev =>
-        prev.map(item => item.id === id ? { ...item, resolved: true } : item)
+        prev.map(item => item.id === id ? { ...item, resolved: true, resolution_note: note } : item)
       );
     } catch (err: unknown) {
       alert("Error", "Failed to resolve anomaly: " + errMsg(err));
@@ -198,8 +215,11 @@ if (!editForm.employee.trim()) {
   };
 
   const filtered = data
-  .filter(item => showResolved ? item.resolved : !item.resolved)
-  .filter(item => severityFilter === "ALL" ? true : item.severity === severityFilter);
+    .filter(item => showResolved ? item.resolved : !item.resolved)
+    .filter(item => severityFilter === "ALL" ? true : item.severity === severityFilter)
+    .filter(item => anomalyTypeFilter === "ALL" ? true : item.anomaly_type === anomalyTypeFilter)
+    .filter(item => cameraFilter === "ALL" ? true : item.camera === cameraFilter)
+    .filter(item => dateFilter ? item.time?.startsWith(dateFilter) : true);
 
   return (
     <div>
@@ -253,6 +273,51 @@ if (!editForm.employee.trim()) {
     </button>
   ))}
 </div>
+
+{/* ANOMALY TYPE FILTER */}
+<div className="flex flex-wrap gap-2 mb-4">
+  {["ALL","UNKNOWN_FACE","LOW_CONFIDENCE","EXIT_WITHOUT_ENTRY","MULTIPLE_ENTRY","CAMERA_OFFLINE","CAMERA_RESTORED"].map(type => (
+    <button
+      key={type}
+      onClick={() => setAnomalyTypeFilter(type)}
+      className={`px-3 py-1.5 text-xs font-medium rounded-full border transition
+        ${anomalyTypeFilter === type
+          ? "bg-[#0B1E3F] text-white border-[#0B1E3F]"
+          : "bg-white text-gray-600 border-gray-300 hover:border-gray-400"
+        }`}
+    >
+      {type === "ALL" ? "All Types" : type.replace(/_/g, " ")}
+    </button>
+  ))}
+</div>
+
+{/* CAMERA + DATE FILTER */}
+<div className="flex flex-wrap gap-3 mb-4">
+  {["ALL","entry","exit"].map(cam => (
+    <button
+      key={cam}
+      onClick={() => setCameraFilter(cam)}
+      className={`px-3 py-1.5 text-xs font-medium rounded-full border transition
+        ${cameraFilter === cam
+          ? "bg-[#0B1E3F] text-white border-[#0B1E3F]"
+          : "bg-white text-gray-600 border-gray-300"
+        }`}
+    >
+      {cam === "ALL" ? "All Cameras" : cam.charAt(0).toUpperCase() + cam.slice(1)}
+    </button>
+  ))}
+  <input
+    type="date"
+    value={dateFilter}
+    onChange={e => setDateFilter(e.target.value)}
+    className="border border-gray-300 rounded-lg px-3 py-1.5 text-xs bg-white"
+  />
+  {dateFilter && (
+    <button onClick={() => setDateFilter("")} className="text-xs text-gray-500 underline">
+      Clear date
+    </button>
+  )}
+</div>
       
       {fetchError && (
         <div className="mb-4 p-4 bg-red-50 border border-red-200 text-red-600 rounded-lg text-sm">
@@ -302,6 +367,23 @@ if (!editForm.employee.trim()) {
                         {item.severity}
                       </span>
                     </h3>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {item.anomaly_type && (
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ANOMALY_TYPE_BADGE[item.anomaly_type] || "bg-gray-100 text-gray-600"}`}>
+                          {item.anomaly_type.replace(/_/g, " ")}
+                        </span>
+                      )}
+                      {item.camera && (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 font-medium">
+                          {item.camera.charAt(0).toUpperCase() + item.camera.slice(1)} Camera
+                        </span>
+                      )}
+                      {item.confidence != null && (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+                          {(item.confidence * 100).toFixed(1)}% confidence
+                        </span>
+                      )}
+                    </div>
                     <p className="text-gray-600 text-sm">{item.description}</p>
                     <p className="text-gray-500 text-sm mt-1">{item.employee} • {item.time}</p>
                   </div>
@@ -325,6 +407,14 @@ if (!editForm.employee.trim()) {
 
                   {!item.resolved && (
                     <>
+                      {(item.anomaly_type === "UNKNOWN_FACE" || item.anomaly_type === "LOW_CONFIDENCE") && (
+                        <button
+                          onClick={() => { setMarkingAttendanceId(item.id); setMarkAttendanceEmployeeId(""); }}
+                          className="px-3 py-1.5 text-xs font-medium border border-blue-300 text-blue-600 rounded-md bg-white hover:bg-blue-50 transition"
+                        >
+                          Mark Attendance
+                        </button>
+                      )}
                       <button
                         onClick={() => {
                           setCorrectingId(item.id);
@@ -336,7 +426,7 @@ if (!editForm.employee.trim()) {
                         Manual Correct
                       </button>
                       <button
-                        onClick={() => markResolved(item.id)}
+                        onClick={() => { setResolvingId(item.id); setResolveNote(""); }}
                         className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-[#0B1E3F] text-white rounded-md hover:opacity-90 transition"
                       >
                         ✓ Resolve
@@ -556,7 +646,89 @@ if (!editForm.employee.trim()) {
           </div>
         </div>
       )}
+{/* RESOLVE WITH NOTE MODAL */}
+{resolvingId !== null && (
+  <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
+    <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-gray-200 relative p-6">
+      <button onClick={() => setResolvingId(null)} className="absolute top-4 right-4 text-gray-500 hover:text-gray-700">
+        <X size={18} />
+      </button>
+      <h2 className="text-xl font-semibold mb-1">Resolve Anomaly</h2>
+      <p className="text-sm text-gray-500 mb-4">Add an optional note before resolving</p>
+      <textarea
+        value={resolveNote}
+        onChange={e => setResolveNote(e.target.value)}
+        placeholder="Resolution note (optional)..."
+        rows={3}
+        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/30 resize-none"
+      />
+      <div className="flex gap-3 mt-4">
+        <button onClick={() => setResolvingId(null)} className="flex-1 border border-gray-300 rounded-lg py-2 text-sm hover:bg-gray-50 transition">
+          Cancel
+        </button>
+        <button
+          onClick={async () => {
+            await markResolved(resolvingId, resolveNote);
+            setResolvingId(null);
+          }}
+          className="flex-1 bg-[#0B1E3F] text-white rounded-lg py-2 text-sm hover:opacity-90 transition"
+        >
+          Confirm Resolve
+        </button>
+      </div>
+    </div>
+  </div>
+)}
 
+{/* MARK ATTENDANCE MODAL */}
+{markingAttendanceId !== null && (
+  <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
+    <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-gray-200 relative p-6">
+      <button onClick={() => setMarkingAttendanceId(null)} className="absolute top-4 right-4 text-gray-500 hover:text-gray-700">
+        <X size={18} />
+      </button>
+      <h2 className="text-xl font-semibold mb-1">Mark Attendance</h2>
+      <p className="text-sm text-gray-500 mb-4">Enter the correct employee ID for this anomaly</p>
+      <input
+        placeholder="Employee ID (e.g. EMP001)"
+        value={markAttendanceEmployeeId}
+        onChange={e => setMarkAttendanceEmployeeId(e.target.value)}
+        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/30"
+      />
+      <div className="flex gap-3 mt-4">
+        <button onClick={() => setMarkingAttendanceId(null)} className="flex-1 border border-gray-300 rounded-lg py-2 text-sm hover:bg-gray-50 transition">
+          Cancel
+        </button>
+        <button
+          disabled={markingSubmitting}
+          onClick={async () => {
+            if (!markAttendanceEmployeeId.trim()) {
+              alert("Validation", "Please enter an employee ID");
+              return;
+            }
+            setMarkingSubmitting(true);
+            try {
+              await markAttendanceFromAnomaly(markingAttendanceId, {
+                employee_id: markAttendanceEmployeeId.trim(),
+              });
+              setData(prev =>
+                prev.map(item => item.id === markingAttendanceId ? { ...item, resolved: true } : item)
+              );
+              setMarkingAttendanceId(null);
+            } catch (err: unknown) {
+              alert("Error", "Failed to mark attendance: " + errMsg(err));
+            } finally {
+              setMarkingSubmitting(false);
+            }
+          }}
+          className="flex-1 bg-[#0B1E3F] text-white rounded-lg py-2 text-sm hover:opacity-90 transition disabled:opacity-50"
+        >
+          {markingSubmitting ? "Submitting..." : "Confirm"}
+        </button>
+      </div>
+    </div>
+  </div>
+)}
    <AppDialog
         open={dialog.open}
         type={dialog.type}

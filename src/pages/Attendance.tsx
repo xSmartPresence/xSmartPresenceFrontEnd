@@ -80,18 +80,19 @@ function Attendance() {
     return () => clearTimeout(timer);
   }, [searchInput]);
 
-  const getStatusBadge = (status: string) => {
-    const base = "px-3 py-1 rounded-full text-xs font-medium";
-    switch (status) {
-      case "Present":   return `${base} bg-green-100 text-green-600`;
-      case "Late":      return `${base} bg-yellow-100 text-yellow-600`;
-      case "Early Exit":
-      case "EarlyExit": return `${base} bg-sky-100 text-sky-500`;
-      case "Overtime":  return `${base} bg-indigo-100 text-indigo-600`;
-      case "Absent":    return `${base} bg-red-100 text-red-600`;
-      default:          return base;
-    }
-  };
+const getStatusBadge = (status: string, r: AttendanceRecord) => {
+  const base = "px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap";
+  switch (status) {
+    case "Present":    return <span className={`${base} bg-green-100 text-green-600`}>Present</span>;
+    case "Late":       return <span className={`${base} bg-yellow-100 text-yellow-600`}>Late{r.late_minutes ? ` · ${r.late_minutes}m` : ""}</span>;
+    case "EarlyExit":
+    case "Early Exit": return <span className={`${base} bg-sky-100 text-sky-500`}>Early Exit{r.early_exit_minutes ? ` · ${r.early_exit_minutes}m` : ""}</span>;
+    case "Overtime":   return <span className={`${base} bg-indigo-100 text-indigo-600`}>Overtime{r.overtime_minutes ? ` · ${r.overtime_minutes}m` : ""}</span>;
+    case "Holiday":    return <span className={`${base} bg-gray-100 text-gray-500`}>Holiday</span>;
+    case "Absent":     return <span className={`${base} bg-red-100 text-red-600`}>Absent</span>;
+    default:           return <span className={base}>{status}</span>;
+  }
+};
 
   const sanitizeCSV = (value: unknown): string => {
     const str = String(value ?? "-");
@@ -269,7 +270,7 @@ function Attendance() {
                       <td className="px-4 py-3 whitespace-nowrap">{formatTimeDisplay(r.out)}</td>
                       <td className="px-4 py-3 whitespace-nowrap">{calculateHours(r.in, r.out)}</td>
                       <td className="px-4 py-3 whitespace-nowrap">
-                        <span className={getStatusBadge(r.status)}>{r.status}</span>
+                        {getStatusBadge(r.status, r)}
                       </td>
                       <td className="px-4 py-3 text-gray-500">{r.anomaly || "-"}</td>
                     </tr>
