@@ -53,7 +53,6 @@ const Anomalies = () => {
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [fetchError, setFetchError] = useState("");
-  const [severityFilter, setSeverityFilter] = useState("ALL");
   const { dialog, confirm, alert, close } = useDialog();
   const [anomalyTypeFilter, setAnomalyTypeFilter] = useState("ALL");
   const [cameraFilter, setCameraFilter] = useState("ALL");
@@ -216,7 +215,6 @@ if (!editForm.employee.trim()) {
 
   const filtered = data
     .filter(item => showResolved ? item.resolved : !item.resolved)
-    .filter(item => severityFilter === "ALL" ? true : item.severity === severityFilter)
     .filter(item => anomalyTypeFilter === "ALL" ? true : item.anomaly_type === anomalyTypeFilter)
     .filter(item => cameraFilter === "ALL" ? true : item.camera === cameraFilter)
     .filter(item => dateFilter ? item.time?.startsWith(dateFilter) : true);
@@ -256,23 +254,6 @@ if (!editForm.employee.trim()) {
 
         </div>
       </div>
-
-      {/* SEVERITY FILTER */}
-<div className="flex flex-wrap gap-2 mb-4">
-  {["ALL", "CRITICAL", "HIGH", "MEDIUM", "LOW"].map(level => (
-    <button
-      key={level}
-      onClick={() => setSeverityFilter(level)}
-      className={`px-3 py-1.5 text-xs font-medium rounded-full border transition
-        ${severityFilter === level
-          ? "bg-[#0B1E3F] text-white border-[#0B1E3F]"
-          : "bg-white text-gray-600 border-gray-300 hover:border-gray-400"
-        }`}
-    >
-      {level === "ALL" ? "All" : level.charAt(0) + level.slice(1).toLowerCase()}
-    </button>
-  ))}
-</div>
 
 {/* ANOMALY TYPE FILTER */}
 <div className="flex flex-wrap gap-2 mb-4">

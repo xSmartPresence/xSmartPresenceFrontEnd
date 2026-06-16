@@ -19,7 +19,7 @@ export const getAttendanceCalendar = async (
   employeeId: string
 ): Promise<Record<string, CalendarDay>> => {
   const data = await apiFetch<CalendarData>(
-    `/api/v1/attendance/calendar?month=${month}&employee_id=${employeeId}`
+    `/attendance/calendar?month=${month}&employee_id=${employeeId}`
   );
   return data?.data?.[employeeId] ?? {};
 };

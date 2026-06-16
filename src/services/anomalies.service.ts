@@ -48,20 +48,20 @@ const mapAnomaly = (a: RawAnomaly): Anomaly => ({
   resolution_note: str(a.resolution_note) || null,
 });
 export const getAnomalies = async (): Promise<Anomaly[]> => {
-  const raw = await apiFetch<RawAnomaly[]>("/api/v1/anomalies/");
+  const raw = await apiFetch<RawAnomaly[]>("/anomalies/");
   if (!Array.isArray(raw)) return [];
   return raw.map(mapAnomaly);
 };
 
 export const resolveAnomaly = async (id: number, note?: string): Promise<void> => {
-  return apiFetch<void>(`/api/v1/anomalies/${id}/resolve`, {
+  return apiFetch<void>(`/anomalies/${id}/resolve`, {
     method: "PATCH",
     body: JSON.stringify({ resolution_note: note || "" }),
   });
 };
 
 export const updateAnomaly = async (id: number, payload: Partial<Anomaly>): Promise<Anomaly> => {
-  const raw = await apiFetch<RawAnomaly>(`/api/v1/anomalies/${id}`, {
+  const raw = await apiFetch<RawAnomaly>(`/anomalies/${id}`, {
     method: "PUT",
     body: JSON.stringify(payload),
   });
@@ -69,7 +69,7 @@ export const updateAnomaly = async (id: number, payload: Partial<Anomaly>): Prom
 };
 
 export const deleteAnomaly = async (id: number): Promise<void> => {
-  return apiFetch<void>(`/api/v1/anomalies/${id}`, {
+  return apiFetch<void>(`/anomalies/${id}`, {
     method: "DELETE",
   });
 };
@@ -78,7 +78,7 @@ export const correctAnomaly = async (
   id: number,
   payload: { correction_reason: string; correction_notes: string }
 ): Promise<void> => {
-  return apiFetch<void>(`/api/v1/anomalies/${id}/correct`, {
+  return apiFetch<void>(`/anomalies/${id}/correct`, {
     method: "POST",
     body: JSON.stringify(payload),
   });
@@ -88,7 +88,7 @@ export const markAttendanceFromAnomaly = async (
   id: number,
   payload: { employee_id: string }
 ): Promise<void> => {
-  return apiFetch<void>(`/api/v1/anomalies/${id}/mark-attendance`, {
+  return apiFetch<void>(`/anomalies/${id}/mark-attendance`, {
     method: "POST",
     body: JSON.stringify(payload),
   });
