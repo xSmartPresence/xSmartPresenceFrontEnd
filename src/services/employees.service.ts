@@ -15,7 +15,10 @@ interface RawEmployee {
   faceRegistered?: unknown;
   is_active?: unknown;
   active?: unknown;
-}
+  shift_start?: unknown;
+  shift_end?: unknown;
+  grace_period_minutes?: unknown;
+  }
 
 const str = (v: unknown, fallback = ""): string =>
   typeof v === "string" ? v : fallback;
@@ -28,15 +31,18 @@ const numOrStr = (v: unknown): number | string =>
 
 // Maps raw API response shape → frontend Employee shape
 const mapEmployee = (e: RawEmployee): Employee => ({
-  id:             numOrStr(e.id ?? e.employee_id) as number,
-  code:           str(e.employee_id) || str(e.code),
-  name:           str(e.full_name)   || str(e.name),
-  department:     str(e.department_name) || str(e.department),
-  shift:          str(e.shift_name)      || str(e.shift),
-  faceRegistered: bool(e.face_registered) || bool(e.faceRegistered),
-  active:         typeof e.is_active !== "undefined"
+  id:                   numOrStr(e.id ?? e.employee_id) as number,
+  code:                 str(e.employee_id) || str(e.code),
+  name:                 str(e.full_name)   || str(e.name),
+  department:           str(e.department_name) || str(e.department),
+  shift:                str(e.shift_name)      || str(e.shift),
+  faceRegistered:       bool(e.face_registered) || bool(e.faceRegistered),
+  active:               typeof e.is_active !== "undefined"
     ? bool(e.is_active)
     : bool(e.active, true),
+  shift_start:          typeof e.shift_start === "string" ? e.shift_start : undefined,
+  shift_end:            typeof e.shift_end === "string" ? e.shift_end : undefined,
+  grace_period_minutes: typeof e.grace_period_minutes === "number" ? e.grace_period_minutes : undefined,
 });
 
 export const getEmployees = async (): Promise<Employee[]> => {

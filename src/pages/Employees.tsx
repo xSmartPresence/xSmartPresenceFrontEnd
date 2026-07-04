@@ -512,6 +512,12 @@ const handleDelete = (code: string) => {
                   </div>
                   <p className="text-xs mt-3">Dept: <span className="font-medium">{emp.department}</span></p>
                   <p className="text-xs">Shift: <span className="font-medium">{emp.shift}</span></p>
+                  {(emp.shift_start || emp.shift_end) && (
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {emp.shift_start} – {emp.shift_end}
+                      {emp.grace_period_minutes != null && ` · Grace: ${emp.grace_period_minutes}m`}
+                    </p>
+                  )}
                   <p className="text-xs mt-2">
                     Face:{" "}
                     <span className={emp.faceRegistered ? "text-green-600" : "text-yellow-600"}>

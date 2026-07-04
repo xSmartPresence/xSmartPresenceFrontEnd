@@ -368,6 +368,20 @@ if (!editForm.employee.trim()) {
                     </div>
                     <p className="text-gray-600 text-sm">{item.description}</p>
                     <p className="text-gray-500 text-sm mt-1">{item.employee} • {item.time}</p>
+                    {/* Show resolution info if resolved */}
+                    {item.resolved && (
+                      <div className="mt-2 text-xs text-gray-400 space-y-0.5">
+                        {item.resolved_by && (
+                          <p>Resolved by <span className="font-medium text-gray-600">{item.resolved_by}</span></p>
+                        )}
+                        {item.resolved_at && (
+                          <p>at {item.resolved_at}</p>
+                        )}
+                        {item.resolution_note && (
+                          <p className="italic">"{item.resolution_note}"</p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 

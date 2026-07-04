@@ -6,6 +6,9 @@ export interface Employee {
   shift: string;        // display name shown on cards (mapped from API)
   faceRegistered: boolean;
   active: boolean;
+  shift_start?: string;
+  shift_end?: string;
+  grace_period_minutes?: number;
 }
 
 export interface CreateEmployeePayload {
