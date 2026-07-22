@@ -4,6 +4,7 @@ import { getAnomalies, resolveAnomaly, deleteAnomaly, updateAnomaly, correctAnom
 import AppDialog from "../components/AppDialog";
 import { useDialog } from "../hooks/useDialog";
 import type { Anomaly } from "../types/anomalies.types";
+import { apiFetch } from "../api/apiClient";
 
 const ANOMALY_TYPE_BADGE: Record<string, string> = {
   UNKNOWN_FACE:       "bg-red-100 text-red-600",
@@ -61,8 +62,11 @@ const Anomalies = () => {
   const [resolvingId, setResolvingId] = useState<number | null>(null);
   const [resolveNote, setResolveNote] = useState("");
   const [markingAttendanceId, setMarkingAttendanceId] = useState<number | null>(null);
-  const [markAttendanceEmployeeId, setMarkAttendanceEmployeeId] = useState("");
   const [markingSubmitting, setMarkingSubmitting] = useState(false);
+  const [employees, setEmployees] = useState<{ code: string; name: string; department: string }[]>([]);
+  const [employeesLoading, setEmployeesLoading] = useState(false);
+  const [employeeSearch, setEmployeeSearch] = useState("");
+  const [selectedEmployee, setSelectedEmployee] = useState<{ code: string; name: string } | null>(null);
 
 useEffect(() => {
   const closeDropdowns = () => {
@@ -405,7 +409,20 @@ if (!editForm.employee.trim()) {
                     <>
                       {(item.anomaly_type === "UNKNOWN_FACE" || item.anomaly_type === "LOW_CONFIDENCE") && (
                         <button
-                          onClick={() => { setMarkingAttendanceId(item.id); setMarkAttendanceEmployeeId(""); }}
+                          onClick={async () => {
+                            setMarkingAttendanceId(item.id);
+                            setSelectedEmployee(null);
+                            setEmployeeSearch("");
+                            setEmployeesLoading(true);
+                            try {
+                              const raw = await apiFetch<{ code: string; name: string; department: string; active: boolean }[]>("/employees/");
+                              setEmployees(raw.filter(e => e.active));
+                            } catch {
+                              alert("Error", "Failed to load employees");
+                            } finally {
+                              setEmployeesLoading(false);
+                            }
+                          }}
                           className="px-3 py-1.5 text-xs font-medium border border-blue-300 text-blue-600 rounded-md bg-white hover:bg-blue-50 transition"
                         >
                           Mark Attendance
@@ -684,33 +701,80 @@ if (!editForm.employee.trim()) {
         <X size={18} />
       </button>
       <h2 className="text-xl font-semibold mb-1">Mark Attendance</h2>
-      <p className="text-sm text-gray-500 mb-4">Enter the correct employee ID for this anomaly</p>
+      <p className="text-sm text-gray-500 mb-4">Select the correct employee for this anomaly</p>
+
+      {/* SEARCH */}
       <input
-        placeholder="Employee ID (e.g. EMP001)"
-        value={markAttendanceEmployeeId}
-        onChange={e => setMarkAttendanceEmployeeId(e.target.value)}
-        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/30"
+        placeholder="Search by name or ID..."
+        value={employeeSearch}
+        onChange={e => setEmployeeSearch(e.target.value)}
+        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/30 mb-2"
       />
+
+      {/* EMPLOYEE LIST */}
+      <div className="border border-gray-200 rounded-lg overflow-y-auto max-h-52">
+        {employeesLoading ? (
+          <p className="text-center text-sm text-gray-400 py-6">Loading employees...</p>
+        ) : employees.filter(e =>
+            e.name.toLowerCase().includes(employeeSearch.toLowerCase()) ||
+            e.code.toLowerCase().includes(employeeSearch.toLowerCase())
+          ).length === 0 ? (
+          <p className="text-center text-sm text-gray-400 py-6">No employees found</p>
+        ) : (
+          employees
+            .filter(e =>
+              e.name.toLowerCase().includes(employeeSearch.toLowerCase()) ||
+              e.code.toLowerCase().includes(employeeSearch.toLowerCase())
+            )
+            .map(e => (
+              <div
+                key={e.code}
+                onClick={() => { setSelectedEmployee(e); }}
+                className={`flex justify-between items-center px-3 py-2.5 cursor-pointer text-sm border-b border-gray-100 last:border-0 transition
+                  ${selectedEmployee?.code === e.code ? "bg-[#0B1E3F] text-white" : "hover:bg-gray-50"}`}
+              >
+                <div>
+                  <p className="font-medium">{e.name}</p>
+                  <p className={`text-xs ${selectedEmployee?.code === e.code ? "text-gray-300" : "text-gray-400"}`}>
+                    {e.department}
+                  </p>
+                </div>
+                <span className={`text-xs font-mono px-2 py-0.5 rounded ${selectedEmployee?.code === e.code ? "bg-white/20 text-white" : "bg-gray-100 text-gray-600"}`}>
+                  {e.code}
+                </span>
+              </div>
+            ))
+        )}
+      </div>
+
+      {/* SELECTED INDICATOR */}
+      {selectedEmployee && (
+        <p className="text-xs text-green-600 mt-2">
+          ✓ Selected: <span className="font-medium">{selectedEmployee.name}</span> ({selectedEmployee.code})
+        </p>
+      )}
+
       <div className="flex gap-3 mt-4">
         <button onClick={() => setMarkingAttendanceId(null)} className="flex-1 border border-gray-300 rounded-lg py-2 text-sm hover:bg-gray-50 transition">
           Cancel
         </button>
         <button
-          disabled={markingSubmitting}
+          disabled={markingSubmitting || !selectedEmployee}
           onClick={async () => {
-            if (!markAttendanceEmployeeId.trim()) {
-              alert("Validation", "Please enter an employee ID");
+            if (!selectedEmployee) {
+              alert("Validation", "Please select an employee");
               return;
             }
             setMarkingSubmitting(true);
             try {
               await markAttendanceFromAnomaly(markingAttendanceId, {
-                employee_id: markAttendanceEmployeeId.trim(),
+                employee_id: selectedEmployee.code,
               });
               setData(prev =>
                 prev.map(item => item.id === markingAttendanceId ? { ...item, resolved: true } : item)
               );
               setMarkingAttendanceId(null);
+              setSelectedEmployee(null);
             } catch (err: unknown) {
               alert("Error", "Failed to mark attendance: " + errMsg(err));
             } finally {
