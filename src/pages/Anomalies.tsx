@@ -1,10 +1,13 @@
 import { useState, useEffect } from "react";
-import { AlertTriangle, Eye, ArrowLeftRight, X, Pencil, Trash2 } from "lucide-react";
+import { AlertTriangle, Eye, ArrowLeftRight, X, Pencil, Trash2, Calendar } from "lucide-react";
 import { getAnomalies, resolveAnomaly, deleteAnomaly, updateAnomaly, correctAnomaly, markAttendanceFromAnomaly } from "../services/anomalies.service";
 import AppDialog from "../components/AppDialog";
 import { useDialog } from "../hooks/useDialog";
 import type { Anomaly } from "../types/anomalies.types";
 import { apiFetch } from "../api/apiClient";
+import DatePicker from "react-datepicker";
+import { format } from "date-fns";
+import "react-datepicker/dist/react-datepicker.css";
 
 const ANOMALY_TYPE_BADGE: Record<string, string> = {
   UNKNOWN_FACE:       "bg-red-100 text-red-600",
@@ -67,6 +70,7 @@ const Anomalies = () => {
   const [employeesLoading, setEmployeesLoading] = useState(false);
   const [employeeSearch, setEmployeeSearch] = useState("");
   const [selectedEmployee, setSelectedEmployee] = useState<{ code: string; name: string } | null>(null);
+  const [selectedAnomalyDate, setSelectedAnomalyDate] = useState<Date | null>(null);
 
 useEffect(() => {
   const closeDropdowns = () => {
@@ -292,17 +296,24 @@ if (!editForm.employee.trim()) {
       {cam === "ALL" ? "All Cameras" : cam.charAt(0).toUpperCase() + cam.slice(1)}
     </button>
   ))}
-  <input
-    type="date"
-    value={dateFilter}
-    onChange={e => setDateFilter(e.target.value)}
-    className="border border-gray-300 rounded-lg px-3 py-1.5 text-xs bg-white"
+  <DatePicker
+    selected={selectedAnomalyDate}
+    onChange={(date: Date | null) => {
+      setSelectedAnomalyDate(date);
+      setDateFilter(date ? format(date, "yyyy-MM-dd") : "");
+    }}
+    maxDate={new Date()}
+    placeholderText="Pick a date"
+    popperPlacement="bottom-start"
+    popperClassName="z-50"
+    isClearable
+    customInput={
+      <button type="button" className="flex items-center gap-2 border border-gray-300 rounded-lg px-3 py-1.5 text-xs bg-white hover:shadow-sm transition">
+        <Calendar size={14} className="text-gray-500" />
+        {selectedAnomalyDate ? format(selectedAnomalyDate, "dd-MM-yyyy") : "Pick a date"}
+      </button>
+    }
   />
-  {dateFilter && (
-    <button onClick={() => setDateFilter("")} className="text-xs text-gray-500 underline">
-      Clear date
-    </button>
-  )}
 </div>
       
       {fetchError && (
